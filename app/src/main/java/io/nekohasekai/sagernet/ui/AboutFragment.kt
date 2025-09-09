@@ -71,29 +71,29 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
             }
         }
 
-        binding.license.text = LICENSE
-        Linkify.addLinks(binding.license, Linkify.EMAIL_ADDRESSES or Linkify.WEB_URLS)
+//        binding.license.text = LICENSE
+//        Linkify.addLinks(binding.license, Linkify.EMAIL_ADDRESSES or Linkify.WEB_URLS)
     }
 
     private fun handleUiState(state: AboutFragmentUiState) {
-        val context = requireContext()
-        val shouldRequestBatteryOptimizations = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-                && !(requireContext().getSystemService(Context.POWER_SERVICE) as PowerManager)
-            .isIgnoringBatteryOptimizations(context.packageName)
-        val cards = ArrayList<AboutCard>(
-            2 // App version and SingBox version
-                    + state.plugins.size // Plugins
-                    + if (shouldRequestBatteryOptimizations) 1 else 0 // Battery optimization
-        ).apply {
-            add(AboutCard.AppVersion())
-            add(AboutCard.SingBoxVersion())
-            state.plugins.forEach { plugin ->
-                add(AboutCard.Plugin(plugin))
-            }
-            if (shouldRequestBatteryOptimizations) {
-                add(AboutCard.BatteryOptimization(requestIgnoreBatteryOptimizations))
-            }
-        }
+//        val context = requireContext()
+//        val shouldRequestBatteryOptimizations = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+//                && !(requireContext().getSystemService(Context.POWER_SERVICE) as PowerManager)
+//            .isIgnoringBatteryOptimizations(context.packageName)
+        val cards = ArrayList<AboutCard>(0)
+//            2 // App version and SingBox version
+//                    + state.plugins.size // Plugins
+//                    + if (shouldRequestBatteryOptimizations) 1 else 0 // Battery optimization
+//        ).apply {
+//            add(AboutCard.AppVersion())
+//            add(AboutCard.SingBoxVersion())
+//            state.plugins.forEach { plugin ->
+//                add(AboutCard.Plugin(plugin))
+//            }
+//            if (shouldRequestBatteryOptimizations) {
+//                add(AboutCard.BatteryOptimization(requestIgnoreBatteryOptimizations))
+//            }
+//        }
         adapter.submitList(cards)
     }
 

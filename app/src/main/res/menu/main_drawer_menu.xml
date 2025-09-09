@@ -7,7 +7,7 @@
                 android:icon="@drawable/ic_action_description"
                 android:title="@string/menu_configuration"/>
 
-        <item
+<!--        <item
                 android:id="@+id/nav_group"
                 android:icon="@drawable/ic_baseline_view_list_24"
                 android:title="@string/menu_group"/>
@@ -46,7 +46,7 @@
         <item
                 android:id="@+id/nav_faq"
                 android:icon="@drawable/ic_device_data_usage"
-                android:title="@string/document"/>
+                android:title="@string/document"/>  -->
         <item
                 android:id="@+id/nav_about"
                 android:icon="@drawable/ic_baseline_info_24"

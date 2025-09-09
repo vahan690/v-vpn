@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">husi</string>
-    <string name="app_name_long">husi for Android</string>
-    <string name="app_desc">The universal proxy toolchain for Android, written in Kotlin.</string>
+    <string name="app_name">V - VPN</string>
+    <string name="app_name_long">V - VPN for Android</string>
+    <string name="app_desc">Ultimate VPN tool for people</string>
     <string name="project">Project</string>
     <string name="github">Source code</string>
     <string name="telegram">Telegram update channel</string>
@@ -294,7 +294,7 @@
     <string name="no">No</string>
     <string name="apply">Apply</string>
     <string name="need_reload">Reload proxy service to apply changes</string>
-    <string name="license">License</string>
+    <string name="license"></string>
     <string name="route_warn">Make sure you have read the documentation before adding custom rules,
         otherwise you may not be able to connect to the Internet.
     </string>

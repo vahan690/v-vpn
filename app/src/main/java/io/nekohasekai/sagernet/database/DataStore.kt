@@ -1,6 +1,9 @@
 package io.nekohasekai.sagernet.database
 
+import android.content.Context
 import android.os.Binder
+import android.provider.Settings
+import android.util.Log
 import androidx.preference.PreferenceDataStore
 import io.nekohasekai.sagernet.CONNECTION_TEST_URL
 import io.nekohasekai.sagernet.CertProvider
@@ -27,6 +30,7 @@ import io.nekohasekai.sagernet.ktx.stringSet
 import io.nekohasekai.sagernet.ktx.stringToInt
 import io.nekohasekai.sagernet.ktx.stringToIntIfExists
 import io.nekohasekai.sagernet.ktx.stringToLong
+import java.security.MessageDigest
 
 object DataStore : OnPreferenceDataStoreChangeListener {
 
@@ -45,6 +49,123 @@ object DataStore : OnPreferenceDataStoreChangeListener {
             // remove old key
             configurationStore.remove("individual")
         }
+    }
+
+    // Activation system properties
+    var isActivated by configurationStore.boolean(Key.IS_ACTIVATED)
+    var activationExpiry by configurationStore.long(Key.ACTIVATION_EXPIRY)
+    var deviceId by configurationStore.string(Key.DEVICE_ID)
+    var activationCodeHash by configurationStore.string(Key.ACTIVATION_CODE_HASH)
+
+    // Enhanced validation method that checks integrity
+    fun isActivationValidWithIntegrity(context: Context): Boolean {
+        if (!isActivated) {
+            Log.d("DataStore", "Activation check failed: not activated")
+            return false
+        }
+        
+        if (System.currentTimeMillis() >= activationExpiry) {
+            Log.d("DataStore", "Activation check failed: expired")
+            return false
+        }
+        
+        // Validate device ID integrity
+        return try {
+            val currentDeviceId = generateDeviceId(context)
+            val storedDeviceId = deviceId
+            
+            // Check if stored device ID matches current device
+            val isValid = storedDeviceId.isNotEmpty() && 
+                         currentDeviceId == storedDeviceId && 
+                         activationCodeHash.isNotEmpty()
+            
+            if (!isValid) {
+                Log.w("DataStore", "Activation integrity check failed")
+                Log.w("DataStore", "Current device ID: $currentDeviceId")
+                Log.w("DataStore", "Stored device ID: $storedDeviceId")
+                Log.w("DataStore", "Has activation code hash: ${activationCodeHash.isNotEmpty()}")
+            } else {
+                Log.d("DataStore", "Activation integrity check passed")
+            }
+            
+            isValid
+        } catch (e: Exception) {
+            Log.e("DataStore", "Error checking activation integrity: ${e.message}")
+            false
+        }
+    }
+
+    private fun generateDeviceId(context: Context): String {
+        val androidId = Settings.Secure.getString(
+            context.contentResolver, 
+            Settings.Secure.ANDROID_ID
+        )
+        val deviceInfo = "${androidId}_${android.os.Build.MODEL}_${android.os.Build.MANUFACTURER}"
+        return hashDeviceInfo(deviceInfo).take(12)
+    }
+
+    private fun hashDeviceInfo(input: String): String {
+        val bytes = MessageDigest.getInstance("SHA-256").digest(input.toByteArray())
+        return bytes.joinToString("") { "%02x".format(it) }
+    }
+
+    // Enhanced clear method with logging
+    fun clearActivationWithReason(reason: String) {
+        Log.w("DataStore", "Clearing activation: $reason")
+        isActivated = false
+        activationExpiry = 0L
+        deviceId = ""
+        activationCodeHash = ""
+    }
+
+    // Legacy method for backward compatibility
+    fun isActivationValid(): Boolean {
+        return isActivated && System.currentTimeMillis() < activationExpiry
+    }
+
+    fun getRemainingDays(): Int {
+        if (!isActivated) return 0
+        val remaining = activationExpiry - System.currentTimeMillis()
+        return (remaining / (24 * 60 * 60 * 1000)).toInt()
+    }
+
+    fun clearActivation() {
+        Log.i("DataStore", "Clearing activation data")
+        isActivated = false
+        activationExpiry = 0L
+        deviceId = ""
+        activationCodeHash = ""
+    }
+
+    // Debug method to log current activation state
+    fun debugActivationState(context: Context) {
+        Log.d("DataStore", "=== Activation Debug Info ===")
+        Log.d("DataStore", "Is Activated: $isActivated")
+        Log.d("DataStore", "Device ID: $deviceId")
+        Log.d("DataStore", "Current Device ID: ${generateDeviceId(context)}")
+        Log.d("DataStore", "Expiry: ${java.util.Date(activationExpiry)}")
+        Log.d("DataStore", "Code Hash: ${activationCodeHash.take(8)}...")
+        Log.d("DataStore", "Is Expired: ${System.currentTimeMillis() >= activationExpiry}")
+        Log.d("DataStore", "Basic Valid: ${isActivationValid()}")
+        Log.d("DataStore", "Integrity Valid: ${isActivationValidWithIntegrity(context)}")
+        Log.d("DataStore", "===========================")
+    }
+
+    // Validate activation and clear if invalid
+    fun validateAndCleanActivation(context: Context): Boolean {
+        if (!isActivationValid()) {
+            if (isActivated) {
+                clearActivationWithReason("Activation expired")
+            }
+            return false
+        }
+        
+        if (!isActivationValidWithIntegrity(context)) {
+            clearActivationWithReason("Activation integrity validation failed")
+            return false
+        }
+        
+        return true
     }
 
     // last used, but may not be running
@@ -240,7 +361,7 @@ object DataStore : OnPreferenceDataStoreChangeListener {
     var serverSNI by profileCacheStore.string(Key.SERVER_SNI)
     var serverSecurity by profileCacheStore.string(Key.SERVER_SECURITY)
     var serverEncryption by profileCacheStore.string(Key.SERVER_ENCRYPTION)
-    var serverALPN by profileCacheStore.string(Key.SERVER_ALPN)
+    var serverALPN by configurationStore.string(Key.SERVER_ALPN)
     var serverCertificates by profileCacheStore.string(Key.SERVER_CERTIFICATES)
     var serverPinnedCertificateChain by profileCacheStore.string(Key.SERVER_PINNED_CERTIFICATE_CHAIN)
     var serverUtlsFingerPrint by profileCacheStore.string(Key.SERVER_UTLS_FINGERPRINT)

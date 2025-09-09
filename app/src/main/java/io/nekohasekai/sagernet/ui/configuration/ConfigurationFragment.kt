@@ -391,232 +391,233 @@ class ConfigurationFragment @JvmOverloads constructor(
         }
 
     override fun onMenuItemClick(item: MenuItem): Boolean {
-        when (item.itemId) {
-            R.id.action_scan_qr_code -> {
-                startActivity(Intent(context, ScannerActivity::class.java))
-            }
 
-            R.id.action_import_clipboard -> {
-                (requireActivity() as MainActivity).parseProxy(SagerNet.getClipboardText())
-            }
-
-            R.id.action_import_file -> {
-                startFilesForResult(importFile, "*/*")
-            }
-
-            R.id.action_new_socks -> {
-                startActivity(Intent(requireActivity(), SocksSettingsActivity::class.java))
-            }
-
-            R.id.action_new_http -> {
-                startActivity(Intent(requireActivity(), HttpSettingsActivity::class.java))
-            }
-
-            R.id.action_new_ss -> {
-                startActivity(Intent(requireActivity(), ShadowsocksSettingsActivity::class.java))
-            }
-
-            R.id.action_new_vmess -> {
-                startActivity(Intent(requireActivity(), VMessSettingsActivity::class.java))
-            }
-
-            R.id.action_new_vless -> {
-                startActivity(Intent(requireActivity(), VMessSettingsActivity::class.java).apply {
-                    putExtra("vless", true)
-                })
-            }
-
-            R.id.action_new_trojan -> {
-                startActivity(Intent(requireActivity(), TrojanSettingsActivity::class.java))
-            }
-
-            R.id.action_new_mieru -> {
-                startActivity(Intent(requireActivity(), MieruSettingsActivity::class.java))
-            }
-
-            R.id.action_new_naive -> {
-                startActivity(Intent(requireActivity(), NaiveSettingsActivity::class.java))
-            }
-
-            R.id.action_new_hysteria -> {
-                startActivity(Intent(requireActivity(), HysteriaSettingsActivity::class.java))
-            }
-
-            R.id.action_new_tuic -> {
-                startActivity(Intent(requireActivity(), TuicSettingsActivity::class.java))
-            }
-
-            R.id.action_new_juicity -> {
-                startActivity(Intent(requireActivity(), JuicitySettingsActivity::class.java))
-            }
-
-            R.id.action_new_direct -> {
-                startActivity(Intent(requireActivity(), DirectSettingsActivity::class.java))
-            }
-
-            R.id.action_new_ssh -> {
-                startActivity(Intent(requireActivity(), SSHSettingsActivity::class.java))
-            }
-
-            R.id.action_new_wg -> {
-                startActivity(Intent(requireActivity(), WireGuardSettingsActivity::class.java))
-            }
-
-            R.id.action_new_shadowtls -> {
-                startActivity(Intent(requireActivity(), ShadowTLSSettingsActivity::class.java))
-            }
-
-            R.id.action_new_anytls -> {
-                startActivity(Intent(requireActivity(), AnyTLSSettingsActivity::class.java))
-            }
-
-            R.id.action_new_shadowquic -> {
-                startActivity(Intent(requireActivity(), ShadowQUICSettingsActivity::class.java))
-            }
-
-            R.id.action_new_proxy_set -> {
-                startActivity(Intent(requireActivity(), ProxySetSettingsActivity::class.java))
-            }
-
-            R.id.action_new_config -> {
-                startActivity(Intent(requireActivity(), ConfigSettingActivity::class.java))
-            }
-
-            R.id.action_new_chain -> {
-                startActivity(Intent(requireActivity(), ChainSettingsActivity::class.java))
-            }
-
-            R.id.action_clear_traffic_statistics -> runOnDefaultDispatcher {
-                val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.currentGroupId())
-                val toClear = mutableListOf<ProxyEntity>()
-                if (profiles.isNotEmpty()) {
-                    for (profile in profiles) {
-                        if (profile.tx != 0L || profile.rx != 0L) {
-                            profile.tx = 0
-                            profile.rx = 0
-                            toClear.add(profile)
-                        }
-                    }
-                }
-                if (toClear.isNotEmpty()) {
-                    ProfileManager.updateProfile(toClear)
-                }
-            }
-
-            R.id.action_connection_test_clear_results -> runOnDefaultDispatcher {
-                val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.currentGroupId())
-                val toClear = mutableListOf<ProxyEntity>()
-                if (profiles.isNotEmpty()) {
-                    for (profile in profiles) {
-                        if (profile.status != ProxyEntity.STATUS_INITIAL) {
-                            profile.status = ProxyEntity.STATUS_INITIAL
-                            profile.ping = 0
-                            profile.error = null
-                            toClear.add(profile)
-                        }
-                    }
-                }
-                if (toClear.isNotEmpty()) {
-                    ProfileManager.updateProfile(toClear)
-                }
-            }
-
-            R.id.action_connection_test_delete_unavailable -> runOnDefaultDispatcher {
-                val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.currentGroupId())
-                val toClear = mutableListOf<ProxyEntity>()
-                if (profiles.isNotEmpty()) {
-                    for (profile in profiles) {
-                        if (profile.status != ProxyEntity.STATUS_INITIAL && profile.status != ProxyEntity.STATUS_AVAILABLE) {
-                            toClear.add(profile)
-                        }
-                    }
-                }
-                if (toClear.isNotEmpty()) {
-                    onMainDispatcher {
-                        MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.confirm)
-                            .setMessage(R.string.delete_confirm_prompt)
-                            .setPositiveButton(android.R.string.ok) { _, _ ->
-                                for (profile in toClear) {
-                                    adapter.groupFragments[DataStore.selectedGroup]?.adapter?.apply {
-                                        val index = configurationIdList.indexOf(profile.id)
-                                        if (index >= 0) {
-                                            configurationIdList.removeAt(index)
-                                            configurationList.remove(profile.id)
-                                            notifyItemRemoved(index)
-                                        }
-                                    }
-                                }
-                                runOnDefaultDispatcher {
-                                    for (profile in toClear) {
-                                        ProfileManager.deleteProfile2(
-                                            profile.groupId, profile.id
-                                        )
-                                    }
-                                }
-                            }.setNegativeButton(android.R.string.cancel, null).show()
-                    }
-                }
-            }
-
-            R.id.action_remove_duplicate -> runOnDefaultDispatcher {
-                val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.currentGroupId())
-                val toClear = mutableListOf<ProxyEntity>()
-                val uniqueProxies = LinkedHashSet<Deduplication>()
-                for (pf in profiles) {
-                    val proxy = Deduplication(pf.requireBean(), pf.displayType())
-                    if (!uniqueProxies.add(proxy)) {
-                        toClear += pf
-                    }
-                }
-                if (toClear.isNotEmpty()) {
-                    onMainDispatcher {
-                        MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.confirm)
-                            .setMessage(
-                                getString(R.string.delete_confirm_prompt) + "\n" + toClear.mapIndexedNotNull { index, proxyEntity ->
-                                    if (index < 20) {
-                                        proxyEntity.displayName()
-                                    } else if (index == 20) {
-                                        "......"
-                                    } else {
-                                        null
-                                    }
-                                }.joinToString("\n")
-                            ).setPositiveButton(android.R.string.ok) { _, _ ->
-                                for (profile in toClear) {
-                                    adapter.groupFragments[DataStore.selectedGroup]?.adapter?.apply {
-                                        val index = configurationIdList.indexOf(profile.id)
-                                        if (index >= 0) {
-                                            configurationIdList.removeAt(index)
-                                            configurationList.remove(profile.id)
-                                            notifyItemRemoved(index)
-                                        }
-                                    }
-                                }
-                                runOnDefaultDispatcher {
-                                    for (profile in toClear) {
-                                        ProfileManager.deleteProfile2(
-                                            profile.groupId, profile.id
-                                        )
-                                    }
-                                }
-                            }.setNegativeButton(android.R.string.cancel, null).show()
-                    }
-                }
-            }
-
-            R.id.action_connection_icmp_ping -> {
-                viewModel.doTest(DataStore.currentGroupId(), TestType.ICMPPing)
-            }
-
-            R.id.action_connection_tcp_ping -> {
-                viewModel.doTest(DataStore.currentGroupId(), TestType.TCPPing)
-            }
-
-            R.id.action_connection_url_test -> {
-                viewModel.doTest(DataStore.currentGroupId(), TestType.URLTest)
-            }
-        }
-        return true
+//      when (item.itemId) {
+//          R.id.action_scan_qr_code -> {
+//              startActivity(Intent(context, ScannerActivity::class.java))
+//          }
+//
+//          R.id.action_import_clipboard -> {
+//              (requireActivity() as MainActivity).parseProxy(SagerNet.getClipboardText())
+//          }
+//
+//          R.id.action_import_file -> {
+//              startFilesForResult(importFile, "*/*")
+//          }
+//
+//          R.id.action_new_socks -> {
+//              startActivity(Intent(requireActivity(), SocksSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_http -> {
+//              startActivity(Intent(requireActivity(), HttpSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_ss -> {
+//              startActivity(Intent(requireActivity(), ShadowsocksSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_vmess -> {
+//              startActivity(Intent(requireActivity(), VMessSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_vless -> {
+//              startActivity(Intent(requireActivity(), VMessSettingsActivity::class.java).apply {
+//                  putExtra("vless", true)
+//              })
+//          }
+//
+//          R.id.action_new_trojan -> {
+//              startActivity(Intent(requireActivity(), TrojanSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_mieru -> {
+//              startActivity(Intent(requireActivity(), MieruSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_naive -> {
+//              startActivity(Intent(requireActivity(), NaiveSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_hysteria -> {
+//              startActivity(Intent(requireActivity(), HysteriaSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_tuic -> {
+//              startActivity(Intent(requireActivity(), TuicSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_juicity -> {
+//              startActivity(Intent(requireActivity(), JuicitySettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_direct -> {
+//              startActivity(Intent(requireActivity(), DirectSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_ssh -> {
+//              startActivity(Intent(requireActivity(), SSHSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_wg -> {
+//              startActivity(Intent(requireActivity(), WireGuardSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_shadowtls -> {
+//              startActivity(Intent(requireActivity(), ShadowTLSSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_anytls -> {
+//              startActivity(Intent(requireActivity(), AnyTLSSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_shadowquic -> {
+//              startActivity(Intent(requireActivity(), ShadowQUICSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_proxy_set -> {
+//              startActivity(Intent(requireActivity(), ProxySetSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_new_config -> {
+//              startActivity(Intent(requireActivity(), ConfigSettingActivity::class.java))
+//          }
+//
+//          R.id.action_new_chain -> {
+//              startActivity(Intent(requireActivity(), ChainSettingsActivity::class.java))
+//          }
+//
+//          R.id.action_clear_traffic_statistics -> runOnDefaultDispatcher {
+//              val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.currentGroupId())
+//              val toClear = mutableListOf<ProxyEntity>()
+//              if (profiles.isNotEmpty()) {
+//                  for (profile in profiles) {
+//                      if (profile.tx != 0L || profile.rx != 0L) {
+//                          profile.tx = 0
+//                          profile.rx = 0
+//                          toClear.add(profile)
+//                      }
+//                  }
+//              }
+//              if (toClear.isNotEmpty()) {
+//                  ProfileManager.updateProfile(toClear)
+//              }
+//          }
+//
+//          R.id.action_connection_test_clear_results -> runOnDefaultDispatcher {
+//              val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.currentGroupId())
+//              val toClear = mutableListOf<ProxyEntity>()
+//              if (profiles.isNotEmpty()) {
+//                  for (profile in profiles) {
+//                      if (profile.status != ProxyEntity.STATUS_INITIAL) {
+//                          profile.status = ProxyEntity.STATUS_INITIAL
+//                          profile.ping = 0
+//                          profile.error = null
+//                          toClear.add(profile)
+//                      }
+//                  }
+//              }
+//              if (toClear.isNotEmpty()) {
+//                  ProfileManager.updateProfile(toClear)
+//              }
+//          }
+//
+//          R.id.action_connection_test_delete_unavailable -> runOnDefaultDispatcher {
+//              val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.currentGroupId())
+//              val toClear = mutableListOf<ProxyEntity>()
+//              if (profiles.isNotEmpty()) {
+//                  for (profile in profiles) {
+//                      if (profile.status != ProxyEntity.STATUS_INITIAL && profile.status != ProxyEntity.STATUS_AVAILABLE) {
+//                          toClear.add(profile)
+//                      }
+//                  }
+//              }
+//              if (toClear.isNotEmpty()) {
+//                  onMainDispatcher {
+//                      MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.confirm)
+//                          .setMessage(R.string.delete_confirm_prompt)
+//                          .setPositiveButton(android.R.string.ok) { _, _ ->
+//                              for (profile in toClear) {
+//                                  adapter.groupFragments[DataStore.selectedGroup]?.adapter?.apply {
+//                                      val index = configurationIdList.indexOf(profile.id)
+//                                      if (index >= 0) {
+//                                          configurationIdList.removeAt(index)
+//                                          configurationList.remove(profile.id)
+//                                          notifyItemRemoved(index)
+//                                      }
+//                                  }
+//                              }
+//                              runOnDefaultDispatcher {
+//                                  for (profile in toClear) {
+//                                      ProfileManager.deleteProfile2(
+//                                          profile.groupId, profile.id
+//                                      )
+//                                  }
+//                              }
+//                          }.setNegativeButton(android.R.string.cancel, null).show()
+//                  }
+//              }
+//          }
+//
+//          R.id.action_remove_duplicate -> runOnDefaultDispatcher {
+//              val profiles = SagerDatabase.proxyDao.getByGroup(DataStore.currentGroupId())
+//              val toClear = mutableListOf<ProxyEntity>()
+//              val uniqueProxies = LinkedHashSet<Deduplication>()
+//              for (pf in profiles) {
+//                  val proxy = Deduplication(pf.requireBean(), pf.displayType())
+//                  if (!uniqueProxies.add(proxy)) {
+//                      toClear += pf
+//                  }
+//              }
+//              if (toClear.isNotEmpty()) {
+//                  onMainDispatcher {
+//                      MaterialAlertDialogBuilder(requireContext()).setTitle(R.string.confirm)
+//                          .setMessage(
+//                              getString(R.string.delete_confirm_prompt) + "\n" + toClear.mapIndexedNotNull { index, proxyEntity ->
+//                                  if (index < 20) {
+//                                      proxyEntity.displayName()
+//                                  } else if (index == 20) {
+//                                      "......"
+//                                  } else {
+//                                      null
+//                                  }
+//                              }.joinToString("\n")
+//                          ).setPositiveButton(android.R.string.ok) { _, _ ->
+//                              for (profile in toClear) {
+//                                  adapter.groupFragments[DataStore.selectedGroup]?.adapter?.apply {
+//                                      val index = configurationIdList.indexOf(profile.id)
+//                                      if (index >= 0) {
+//                                          configurationIdList.removeAt(index)
+//                                          configurationList.remove(profile.id)
+//                                          notifyItemRemoved(index)
+//                                      }
+//                                  }
+//                              }
+//                              runOnDefaultDispatcher {
+//                                  for (profile in toClear) {
+//                                      ProfileManager.deleteProfile2(
+//                                          profile.groupId, profile.id
+//                                      )
+//                                  }
+//                              }
+//                          }.setNegativeButton(android.R.string.cancel, null).show()
+//                  }
+//              }
+//          }
+//
+//          R.id.action_connection_icmp_ping -> {
+//              viewModel.doTest(DataStore.currentGroupId(), TestType.ICMPPing)
+//          }
+//
+//          R.id.action_connection_tcp_ping -> {
+//              viewModel.doTest(DataStore.currentGroupId(), TestType.TCPPing)
+//          }
+//
+//          R.id.action_connection_url_test -> {
+//              viewModel.doTest(DataStore.currentGroupId(), TestType.URLTest)
+//          }
+//      }
+        return false
     }
 
     private var testDialog: AlertDialog? = null
@@ -1360,7 +1361,17 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
 
                 profileName.text = proxyEntity.displayName()
-                profileType.text = proxyEntity.displayType()
+                // Check if this is Germany profile and hide technical details
+                val isGermanyProfile = proxyEntity.displayName() == "Germany"
+                if (isGermanyProfile) {
+                    profileType.text = "VPN Server"
+                    profileAddress.text = ""
+                    editButton.visibility = View.GONE
+                    shareButton.visibility = View.GONE
+                    removeButton.visibility = View.GONE
+                } else {
+                    profileType.text = proxyEntity.displayType()
+                }
 
                 var rx = proxyEntity.rx
                 var tx = proxyEntity.tx
@@ -1450,9 +1461,10 @@ class ConfigurationFragment @JvmOverloads constructor(
                     }
                 }
 
-                shareButton.isGone = select
-                editButton.isGone = select
-                removeButton.isGone = select
+                val isGermany = proxyEntity.displayName() == "Germany"
+                shareButton.isGone = true  // Always hide share button
+                editButton.isGone = select || isGermany
+                removeButton.isGone = select || isGermany
 
                 runOnDefaultDispatcher {
                     val selected = (selectedItem?.id ?: DataStore.selectedProxy) == proxyEntity.id
@@ -1491,14 +1503,22 @@ class ConfigurationFragment @JvmOverloads constructor(
                     }
 
                     if (!select) {
-                        val validateResult =
-                            if ((parentFragment as? ConfigurationFragment)?.securityAdvisory == true) {
+//                        val validateResult =
+//                            if ((parentFragment as? ConfigurationFragment)?.securityAdvisory == true) {
+//                                proxyEntity.requireBean().isInsecure()
+//                            } else ResultLocal
+                        val validateResult = if ((parentFragment as? ConfigurationFragment)?.securityAdvisory == true) {
+                            // Skip security check for Germany profile
+                            if (proxyEntity.displayName() == "Germany" || proxyEntity.displayName() == "VPN Server") {
+                                ResultLocal
+                            } else {
                                 proxyEntity.requireBean().isInsecure()
-                            } else ResultLocal
+                            }
+                        } else ResultLocal
 
                         when (validateResult) {
                             is ResultInsecure -> onMainDispatcher {
-                                shareButton.isVisible = true
+                                shareButton.isVisible = false
 
                                 shareButton.setBackgroundColor(Color.RED)
                                 shareButton.setIconResource(R.drawable.ic_baseline_warning_24)
@@ -1521,7 +1541,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                             }
 
                             is ResultDeprecated -> onMainDispatcher {
-                                shareButton.isVisible = true
+                                shareButton.isVisible = false
 
                                 shareButton.setBackgroundColor(Color.YELLOW)
                                 shareButton.setIconResource(R.drawable.ic_baseline_warning_24)
@@ -1553,7 +1573,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                                         )
                                     )
                                 )
-                                shareButton.isVisible = true
+                                shareButton.isVisible = false
 
                                 shareButton.setOnClickListener {
                                     showShare(it)

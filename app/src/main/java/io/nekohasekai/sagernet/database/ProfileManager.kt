@@ -88,6 +88,50 @@ object ProfileManager {
         return profile
     }
 
+    suspend fun createDefaultHysteria2Profile(groupId: Long): ProxyEntity {
+        android.util.Log.d("ProfileManager", "Creating Hysteria2 profile for group: $groupId")
+
+        val bean = io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean().apply {
+            protocolVersion = io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean.PROTOCOL_VERSION_2
+            name = "Germany"
+            serverAddress = "62.171.179.248"
+            serverPorts = "22153"
+            authPayload = "KKX7uSdSG8K3g54d5fh4"
+            obfuscation = "IranSafeNet2025"
+            allowInsecure = true
+            sni = ""
+        }
+
+        android.util.Log.d("ProfileManager", "Bean created with name: ${bean.name}")
+
+        val profile = createProfile(groupId, bean)
+        android.util.Log.d("ProfileManager", "Profile created with ID: ${profile.id}")
+        return profile
+    }
+
+// Add this function to check and create default profile on first run
+suspend fun ensureDefaultProfile() {
+    try {
+        val allProfiles = SagerDatabase.proxyDao.getAll()
+        android.util.Log.d("ProfileManager", "Total profiles found: ${allProfiles.size}")
+
+        val hasGermanyProfile = allProfiles.any { it.displayName() == "Germany" }
+        android.util.Log.d("ProfileManager", "Has Germany profile: $hasGermanyProfile")
+
+        if (allProfiles.isEmpty() || !hasGermanyProfile) {
+            android.util.Log.d("ProfileManager", "Creating default Germany profile...")
+            val groups = SagerDatabase.groupDao.allGroups()
+            android.util.Log.d("ProfileManager", "Groups found: ${groups.size}")
+            val defaultGroupId = groups.firstOrNull()?.id ?: 1L
+            android.util.Log.d("ProfileManager", "Using group ID: $defaultGroupId")
+            createDefaultHysteria2Profile(defaultGroupId)
+            android.util.Log.d("ProfileManager", "Germany profile created successfully")
+        }
+    } catch (e: Exception) {
+        android.util.Log.e("ProfileManager", "Error in ensureDefaultProfile", e)
+    }
+}
+
     suspend fun updateProfile(profile: ProxyEntity) {
         SagerDatabase.proxyDao.updateProxy(profile)
         iterator { onUpdated(profile, false) }

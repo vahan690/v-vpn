@@ -286,6 +286,11 @@ object Key {
     const val TASKER_ACTION = "taskerAction"
     const val TASKER_PROFILE = "taskerProfile"
     const val TASKER_PROFILE_ID = "taskerProfileId"
+
+    const val IS_ACTIVATED = "is_activated"
+    const val ACTIVATION_EXPIRY = "activation_expiry"
+    const val DEVICE_ID = "device_id"
+    const val ACTIVATION_CODE_HASH = "activation_code_hash"
 }
 
 fun logLevelString(level: Int): String = when (level) {

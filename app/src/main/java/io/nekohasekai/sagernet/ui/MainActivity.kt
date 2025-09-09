@@ -9,6 +9,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.RemoteException
+import android.provider.Settings
+import android.util.Log
 import android.view.KeyEvent
 import android.view.MenuItem
 import android.view.View
@@ -26,6 +28,7 @@ import androidx.preference.PreferenceDataStore
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.navigation.NavigationView
 import com.google.android.material.snackbar.Snackbar
+import io.nekohasekai.sagernet.BuildConfig
 import io.nekohasekai.sagernet.GroupType
 import io.nekohasekai.sagernet.Key
 import io.nekohasekai.sagernet.LICENSE
@@ -37,6 +40,7 @@ import io.nekohasekai.sagernet.aidl.SpeedDisplayData
 import io.nekohasekai.sagernet.aidl.TrafficData
 import io.nekohasekai.sagernet.bg.BaseService
 import io.nekohasekai.sagernet.bg.SagerConnection
+import io.nekohasekai.sagernet.bg.VpnService
 import io.nekohasekai.sagernet.database.DataStore
 import io.nekohasekai.sagernet.database.GroupManager
 import io.nekohasekai.sagernet.database.ProfileManager
@@ -66,7 +70,14 @@ import io.nekohasekai.sagernet.ui.configuration.ConfigurationFragment
 import io.nekohasekai.sagernet.ui.dashboard.DashboardFragment
 import io.nekohasekai.sagernet.ui.tools.ToolsFragment
 import io.nekohasekai.sfa.utils.MIUIUtils
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import java.io.File
+import java.security.MessageDigest
 
 class MainActivity : ThemedActivity(),
     SagerConnection.Callback,
@@ -75,6 +86,11 @@ class MainActivity : ThemedActivity(),
 
     lateinit var binding: LayoutMainBinding
     private lateinit var navigation: NavigationView
+    private lateinit var activationValidator: ActivationValidator
+    private var isInitialized = false
+    private var storedSavedInstanceState: Bundle? = null
+    private var isConnecting = false
+    private var validationJob: Job? = null
 
     override val onBackPressedCallback = object : OnBackPressedCallback(enabled = false) {
         override fun handleOnBackPressed() {
@@ -89,8 +105,124 @@ class MainActivity : ThemedActivity(),
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        Log.d("MainActivity", "onCreate - Build type: ${BuildConfig.BUILD_TYPE}")
+
+        // Store savedInstanceState for later use
+        this.storedSavedInstanceState = savedInstanceState
+
+        // Initialize activation validator
+        try {
+            activationValidator = ActivationValidator(this)
+            Log.d("MainActivity", "ActivationValidator initialized successfully")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to initialize ActivationValidator: ${e.message}")
+            e.printStackTrace()
+            // If ActivationValidator fails to initialize, redirect to activation screen
+            redirectToActivationScreen()
+            return
+        }
+
+        // Always check activation regardless of build type
+        checkActivationWithServer()
+    }
+
+    private fun checkActivationWithServer() {
+        Log.d("MainActivity", "Starting server activation check...")
+
+        // Cancel any existing validation job
+        validationJob?.cancel()
+
+        // Stop any running services first
+        try {
+            SagerNet.stopService()
+            stopService(Intent(this, VpnService::class.java))
+        } catch (e: Exception) {
+            Log.d("MainActivity", "No service to stop: ${e.message}")
+        }
+
+        validationJob = CoroutineScope(Dispatchers.Main).launch {
+            try {
+                // Add timeout to prevent hanging
+                withTimeout(15000) { // 15 second timeout
+
+                    Log.d("MainActivity", "Calling activationValidator.validateActivationWithServer()")
+                    val response = activationValidator.validateActivationWithServer()
+
+                    Log.d("MainActivity", "Server response - Valid: ${response.isValid}")
+                    Log.d("MainActivity", "Server response - Message: '${response.message}'")
+                    Log.d("MainActivity", "Server response - ExpiresAt: '${response.expiresAt}'")
+                    Log.d("MainActivity", "Server response - RemainingDays: ${response.remainingDays}")
+
+                    if (response.isValid) {
+                        Log.d("MainActivity", "Response is valid, updating local data and initializing app")
+                        // Update local storage with server data
+                        updateLocalActivationData(response)
+                        initializeApp()
+                    } else {
+                        Log.d("MainActivity", "Response is invalid, redirecting to activation screen")
+                        // Clear local data and redirect
+                        clearLocalActivationData()
+                        redirectToActivationScreen()
+                    }
+                }
+            } catch (e: TimeoutCancellationException) {
+                Log.e("MainActivity", "Server activation check timed out")
+                // On timeout, redirect to activation screen
+                clearLocalActivationData()
+                redirectToActivationScreen()
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Server activation check failed: ${e.message}")
+                e.printStackTrace()
+                clearLocalActivationData()
+                redirectToActivationScreen()
+            }
+        }
+    }
+
+    private fun updateLocalActivationData(response: ActivationValidator.ActivationCheckResponse) {
+        try {
+            DataStore.isActivated = response.isValid
+
+            // Parse expiration date from server
+            response.expiresAt?.let { expiresAt ->
+                try {
+                    val serverDate = java.time.Instant.parse(expiresAt)
+                    DataStore.activationExpiry = serverDate.toEpochMilli()
+                } catch (e: Exception) {
+                    // Fallback: calculate from remaining days
+                    val remainingMs = response.remainingDays * 24L * 60 * 60 * 1000
+                    DataStore.activationExpiry = System.currentTimeMillis() + remainingMs
+                }
+            }
+
+            // Store device ID and a validation token
+            DataStore.deviceId = activationValidator.generateDeviceId()
+            DataStore.activationCodeHash = "server_validated_${System.currentTimeMillis()}"
+
+            Log.d("MainActivity", "Local activation data updated - Expires: ${java.util.Date(DataStore.activationExpiry)}")
+
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error updating local activation data: ${e.message}")
+        }
+    }
+
+    private fun clearLocalActivationData() {
+        DataStore.isActivated = false
+        DataStore.activationExpiry = 0L
+        DataStore.deviceId = ""
+        DataStore.activationCodeHash = ""
+        Log.d("MainActivity", "Local activation data cleared")
+    }
+
+    private fun initializeApp() {
+        if (isInitialized) return
+        isInitialized = true
+
+        Log.d("MainActivity", "Initializing app with valid activation")
+
         binding = LayoutMainBinding.inflate(layoutInflater)
         binding.fab.initProgress(binding.fabProgress)
+
         if (themeResId !in intArrayOf(
                 R.style.Theme_SagerNet_Black
             )
@@ -101,7 +233,9 @@ class MainActivity : ThemedActivity(),
             navigation = binding.navViewBlack
             binding.drawerLayout.removeView(binding.navView)
         }
+
         navigation.setNavigationItemSelectedListener(this)
+
         if (resources.configuration.layoutDirection == View.LAYOUT_DIRECTION_RTL) {
             ViewCompat.setOnApplyWindowInsetsListener(navigation) { v, insets ->
                 val bars = insets.getInsets(
@@ -128,38 +262,60 @@ class MainActivity : ThemedActivity(),
             }
         }
 
-        if (savedInstanceState == null) {
+        // Use the stored savedInstanceState
+        if (storedSavedInstanceState == null) {
             displayFragmentWithId(R.id.nav_configuration)
         }
 
+        // Enhanced FAB click with proper state management
         binding.fab.setOnClickListener {
-            if (DataStore.serviceState.canStop) SagerNet.stopService() else connect.launch(
-                null
-            )
+//            if (isConnecting) {
+//                Log.d("MainActivity", "Already connecting, ignoring click")
+//                return@setOnClickListener
+//            }
+
+//            Log.d("MainActivity", "FAB clicked - Current state: ${DataStore.serviceState}")
+
+            if (DataStore.serviceState.canStop) {
+                Log.d("MainActivity", "Stopping service")
+                SagerNet.stopService()
+            } else {
+                Log.d("MainActivity", "Validating before connecting")
+                validateBeforeServiceAction { isValid ->
+                    if (isValid) {
+                        Log.d("MainActivity", "Validation successful, launching connection")
+                        connect.launch(null)
+                    } else {
+                        Log.d("MainActivity", "Validation failed, showing activation dialog")
+                        showActivationExpiredDialog()
+                    }
+                }
+            }
         }
-        binding.stats.setOnClickListener { if (DataStore.serviceState.connected) binding.stats.testConnection() }
+
+        binding.stats.setOnClickListener {
+            if (DataStore.serviceState.connected) binding.stats.testConnection()
+        }
 
         setContentView(binding.root)
         changeState(BaseService.State.Idle)
         connection.connect(this, this)
         DataStore.configurationStore.registerChangeListener(this)
         GroupManager.userInterface = GroupInterfaceAdapter(this)
+        runOnDefaultDispatcher { ProfileManager.ensureDefaultProfile() }
 
         when (intent.action) {
             Intent.ACTION_VIEW -> onNewIntent(intent)
-            Intent.ACTION_PROCESS_TEXT -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) { // 23
+            Intent.ACTION_PROCESS_TEXT -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                 parseProxy(intent.getStringExtra(Intent.EXTRA_PROCESS_TEXT) ?: "")
             }
-
             else -> {}
         }
 
-        // sdk 33 notification
+        // SDK 33 notification permission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            val checkPermission =
-                ContextCompat.checkSelfPermission(this@MainActivity, POST_NOTIFICATIONS)
+            val checkPermission = ContextCompat.checkSelfPermission(this@MainActivity, POST_NOTIFICATIONS)
             if (checkPermission != PackageManager.PERMISSION_GRANTED) {
-                //动态申请
                 ActivityCompat.requestPermissions(
                     this@MainActivity,
                     arrayOf(POST_NOTIFICATIONS),
@@ -168,7 +324,7 @@ class MainActivity : ThemedActivity(),
             }
         }
 
-        // consent
+        // Consent dialog
         try {
             val f = File(application.filesDir, "consent")
             if (!f.exists()) {
@@ -186,6 +342,130 @@ class MainActivity : ThemedActivity(),
         } catch (e: Exception) {
             Logs.w(e)
         }
+    }
+
+    private fun validateBeforeServiceAction(callback: (Boolean) -> Unit) {
+        if (isConnecting) {
+            Log.d("MainActivity", "Already validating, skipping")
+            callback(false)
+            return
+        }
+
+        isConnecting = true
+
+        // Cancel any existing validation
+        validationJob?.cancel()
+
+        validationJob = CoroutineScope(Dispatchers.Main).launch {
+            try {
+                withTimeout(10000) { // 10 second timeout
+                    Log.d("MainActivity", "Starting validation before service action")
+                    val response = activationValidator.validateActivationWithServer()
+
+                    Log.d("MainActivity", "Validation response: ${response.isValid}")
+
+                    if (response.isValid) {
+                        updateLocalActivationData(response)
+                        isConnecting = false
+                        callback(true)
+                    } else {
+                        clearLocalActivationData()
+                        isConnecting = false
+                        callback(false)
+                    }
+                }
+            } catch (e: TimeoutCancellationException) {
+                Log.e("MainActivity", "Service validation timed out")
+                isConnecting = false
+                callback(false)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Service validation failed: ${e.message}")
+                e.printStackTrace()
+                isConnecting = false
+                callback(false)
+            }
+        }
+    }
+
+    private fun redirectToActivationScreen() {
+        Log.d("MainActivity", "Redirecting to activation screen")
+
+        try {
+            val intent = Intent(this, ActivationActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+
+            // Check if ActivationActivity exists
+            val resolveInfo = packageManager.resolveActivity(intent, 0)
+            if (resolveInfo != null) {
+                Log.d("MainActivity", "ActivationActivity found, starting it")
+                startActivity(intent)
+                finish()
+            } else {
+                Log.e("MainActivity", "ActivationActivity not found!")
+                // Fallback: show a dialog instead
+                showActivationRequiredDialog()
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to start ActivationActivity: ${e.message}")
+            e.printStackTrace()
+            showActivationRequiredDialog()
+        }
+    }
+
+    private fun showActivationRequiredDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Activation Required")
+            .setMessage("Please activate your VPN service. ActivationActivity not available.")
+            .setPositiveButton("OK") { _, _ ->
+                finish()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+        // Re-check activation every time app resumes (only if app is initialized)
+        if (isInitialized && !isConnecting) {
+            Log.d("MainActivity", "Re-checking activation on resume")
+
+            // Cancel any existing validation
+            validationJob?.cancel()
+
+            validationJob = CoroutineScope(Dispatchers.Main).launch {
+                try {
+                    withTimeout(10000) { // 10 second timeout
+                        val response = activationValidator.validateActivationWithServer()
+                        if (!response.isValid) {
+                            Log.d("MainActivity", "Activation invalid on resume, redirecting")
+                            clearLocalActivationData()
+                            redirectToActivationScreen()
+                        } else {
+                            updateLocalActivationData(response)
+                        }
+                    }
+                } catch (e: TimeoutCancellationException) {
+                    Log.e("MainActivity", "Resume activation check timed out")
+                    // Don't redirect on timeout during resume, just log it
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Resume activation check failed: ${e.message}")
+                    // Don't redirect on resume errors, just log them
+                }
+            }
+        }
+    }
+
+    private fun showActivationExpiredDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Activation Required")
+            .setMessage("Your VPN service activation has expired or is invalid. Please reactivate to continue.")
+            .setPositiveButton("Activate") { _, _ ->
+                redirectToActivationScreen()
+            }
+            .setNegativeButton("Cancel", null)
+            .setCancelable(false)
+            .show()
     }
 
     override fun onNewIntent(intent: Intent) {
@@ -227,7 +507,6 @@ class MainActivity : ThemedActivity(),
             val subscription = SubscriptionBean()
             group.subscription = subscription
 
-            // cleartext format
             subscription.link = url
             subscription.type = when (uri.getQueryParameter("type")?.lowercase()) {
                 "oocv1" -> SubscriptionType.OOCv1
@@ -265,8 +544,7 @@ class MainActivity : ThemedActivity(),
             ?: ("Subscription #" + System.currentTimeMillis())
 
         onMainDispatcher {
-
-            displayFragmentWithId(R.id.nav_group)
+            displayFragmentWithId(R.id.nav_configuration)
 
             MaterialAlertDialogBuilder(this@MainActivity).setTitle(R.string.subscription_import)
                 .setMessage(getString(R.string.subscription_import_message, name))
@@ -277,9 +555,7 @@ class MainActivity : ThemedActivity(),
                 }
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
-
         }
-
     }
 
     private suspend fun finishImportSubscription(subscription: ProxyGroup) {
@@ -308,17 +584,13 @@ class MainActivity : ThemedActivity(),
                 .setNegativeButton(android.R.string.cancel, null)
                 .show()
         }
-
     }
 
     private suspend fun finishImportProfile(profile: AbstractBean) {
         val targetId = DataStore.selectedGroupForImport()
-
         ProfileManager.createProfile(targetId, profile)
-
         onMainDispatcher {
             displayFragmentWithId(R.id.nav_configuration)
-
             snackbar(resources.getQuantityString(R.plurals.added, 1, 1)).show()
         }
     }
@@ -326,13 +598,10 @@ class MainActivity : ThemedActivity(),
     override fun missingPlugin(profileName: String, pluginName: String) {
         val pluginEntity = PluginEntry.find(pluginName)
 
-        // unknown exe or neko plugin
         if (pluginEntity == null) {
             snackbar(getString(R.string.plugin_unknown, pluginName)).show()
             return
         }
-
-        // official exe
 
         MaterialAlertDialogBuilder(this).setTitle(R.string.missing_plugin)
             .setMessage(
@@ -394,20 +663,7 @@ class MainActivity : ThemedActivity(),
             R.id.nav_configuration -> {
                 displayFragment(ConfigurationFragment())
             }
-
-            R.id.nav_group -> displayFragment(GroupFragment())
-            R.id.nav_route -> displayFragment(RouteFragment())
-            R.id.nav_settings -> displayFragment(SettingsFragment())
-            R.id.nav_traffic -> displayFragment(DashboardFragment())
-            R.id.nav_tools -> displayFragment(ToolsFragment())
-            R.id.nav_logcat -> displayFragment(LogcatFragment())
-            R.id.nav_faq -> {
-                launchCustomTab("https://github.com/xchacha20-poly1305/husi/wiki")
-                return false
-            }
-
             R.id.nav_about -> displayFragment(AboutFragment())
-
             else -> return false
         }
         navigation.menu.findItem(id).isChecked = true
@@ -422,31 +678,45 @@ class MainActivity : ThemedActivity(),
         DataStore.serviceState = state
         if (state == BaseService.State.RequiredLocation) requestLocationPermission()
 
-        binding.fab.changeState(state, DataStore.serviceState, animate)
-        binding.stats.changeState(state)
+        if (::binding.isInitialized) {
+            binding.fab.changeState(state, DataStore.serviceState, animate)
+            binding.stats.changeState(state)
+        }
+
         if (msg != null) snackbar(getString(R.string.vpn_error, msg)).show()
 
         when (state) {
             BaseService.State.Connected, BaseService.State.Stopped -> {
                 runOnDefaultDispatcher {
-                    // refresh view
                     ProfileManager.postUpdate(DataStore.currentProfile)
                 }
             }
-
             else -> {}
         }
     }
 
     override fun snackbarInternal(text: CharSequence): Snackbar {
-        return Snackbar.make(binding.coordinator, text, Snackbar.LENGTH_LONG).apply {
-            if (binding.fab.isShown) {
-                anchorView = binding.fab
+        return if (::binding.isInitialized) {
+            Snackbar.make(binding.coordinator, text, Snackbar.LENGTH_LONG).apply {
+                if (binding.fab.isShown) {
+                    anchorView = binding.fab
+                }
             }
+        } else {
+            Snackbar.make(findViewById(android.R.id.content), text, Snackbar.LENGTH_LONG)
         }
     }
 
     override fun stateChanged(state: BaseService.State, profileName: String?, msg: String?) {
+//        Log.d("MainActivity", "State changed to: $state")
+
+        // Reset connecting flag when state becomes idle
+//        if (state == BaseService.State.Idle) {
+//            isConnecting = false
+//        }
+
+        // Don't validate activation for every state change - this causes issues
+        // Only validate when explicitly needed
         changeState(state, msg, true)
     }
 
@@ -465,14 +735,20 @@ class MainActivity : ThemedActivity(),
         connection.connect(this, this)
     }
 
-    private val connect = registerForActivityResult(VpnRequestActivity.StartService()) {
-        if (it) snackbar(R.string.vpn_permission_denied).show()
+    private val connect = registerForActivityResult(VpnRequestActivity.StartService()) { denied ->
+        isConnecting = false
+        if (denied) {
+            Log.d("MainActivity", "VPN permission denied")
+            snackbar(R.string.vpn_permission_denied).show()
+        } else {
+            Log.d("MainActivity", "VPN permission granted")
+        }
     }
 
-    // may NOT called when app is in background
-    // ONLY do UI update here, write DB in bg process
     override fun cbSpeedUpdate(stats: SpeedDisplayData) {
-        binding.stats.updateSpeed(stats.txRateProxy, stats.rxRateProxy)
+        if (::binding.isInitialized) {
+            binding.stats.updateSpeed(stats.txRateProxy, stats.rxRateProxy)
+        }
     }
 
     override fun cbTrafficUpdate(data: TrafficData) {
@@ -505,6 +781,7 @@ class MainActivity : ThemedActivity(),
     }
 
     override fun onDestroy() {
+        validationJob?.cancel()
         super.onDestroy()
         GroupManager.userInterface = null
         DataStore.configurationStore.unregisterChangeListener(this)
@@ -515,12 +792,13 @@ class MainActivity : ThemedActivity(),
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> {
                 if (super.onKeyDown(keyCode, event)) return true
-                binding.drawerLayout.open()
-                navigation.requestFocus()
+                if (::binding.isInitialized) {
+                    binding.drawerLayout.open()
+                    navigation.requestFocus()
+                }
             }
-
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (binding.drawerLayout.isOpen) {
+                if (::binding.isInitialized && binding.drawerLayout.isOpen) {
                     binding.drawerLayout.close()
                     return true
                 }
@@ -528,14 +806,12 @@ class MainActivity : ThemedActivity(),
         }
 
         if (super.onKeyDown(keyCode, event)) return true
-        if (binding.drawerLayout.isOpen) return false
+        if (::binding.isInitialized && binding.drawerLayout.isOpen) return false
 
-        val fragment =
-            supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ToolbarFragment
+        val fragment = supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ToolbarFragment
         return fragment != null && fragment.onKeyDown(keyCode, event)
     }
 
-    // 入口
     private fun requestLocationPermission() {
         Logs.d("start getting location")
         if (!hasPermission(Manifest.permission.ACCESS_FINE_LOCATION)) {
@@ -579,9 +855,7 @@ class MainActivity : ThemedActivity(),
     private fun requestBackgroundLocationPermission() {
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.location_permission_title)
-            .setMessage(
-                R.string.location_permission_background_description
-            )
+            .setMessage(R.string.location_permission_background_description)
             .setPositiveButton(android.R.string.ok) { _, _ ->
                 backgroundLocationPermissionLauncher.launch(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
             }
@@ -625,7 +899,6 @@ class MainActivity : ThemedActivity(),
                     importSubscription(e.link.toUri())
                 } catch (e: Exception) {
                     Logs.w(e)
-
                     onMainDispatcher {
                         snackbar(e.readableMessage).show()
                     }
@@ -638,7 +911,6 @@ class MainActivity : ThemedActivity(),
                 null
             }
             if (singleURI != null) {
-                // Import as proxy or subscription
                 when (singleURI.scheme) {
                     "http", "https" -> onMainDispatcher {
                         MaterialAlertDialogBuilder(this@MainActivity)
@@ -656,7 +928,6 @@ class MainActivity : ThemedActivity(),
                             }
                             .show()
                     }
-
                     else -> parseSubscription()
                 }
             } else {
