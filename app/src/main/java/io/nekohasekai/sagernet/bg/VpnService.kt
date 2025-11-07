@@ -7,8 +7,6 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.ProxyInfo
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.os.PowerManager
 import android.util.Log
@@ -37,9 +35,6 @@ class VpnService : BaseVpnService(),
         const val FAKEDNS_VLAN6_CLIENT = "fc00::"
         const val PRIVATE_VLAN6_CLIENT = "fdfe:dcba:9876::1"
         const val PRIVATE_VLAN6_ROUTER = "fdfe:dcba:9876::2"
-
-        // Activation validation interval (30 seconds)
-        private const val ACTIVATION_CHECK_INTERVAL = 30000L
     }
 
     override fun attachBaseContext(newBase: Context) {
@@ -53,78 +48,9 @@ class VpnService : BaseVpnService(),
 
     override var upstreamInterfaceName: String? = null
 
-    // Handler for periodic activation checks
-    private val activationHandler = Handler(Looper.getMainLooper())
-    private var activationCheckRunnable: Runnable? = null
-
     override suspend fun startProcesses() {
-        // Check activation before starting
-        if (!validateActivation()) {
-            Log.w("VpnService", "Activation validation failed, stopping service")
-            stopRunner()
-            return
-        }
-
         DataStore.vpnService = this
         super.startProcesses() // launch proxy instance
-        
-        // Start periodic activation checks
-        startActivationMonitoring()
-    }
-
-    private fun validateActivation(): Boolean {
-        return try {
-            val isValid = DataStore.validateAndCleanActivation(this)
-            if (!isValid) {
-                Log.w("VpnService", "Service activation validation failed")
-                // Send notification or intent to inform user
-                notifyActivationExpired()
-            }
-            isValid
-        } catch (e: Exception) {
-            Log.e("VpnService", "Error validating activation: ${e.message}")
-            false
-        }
-    }
-
-    private fun startActivationMonitoring() {
-        stopActivationMonitoring() // Stop any existing monitoring
-        
-        activationCheckRunnable = object : Runnable {
-            override fun run() {
-                if (!validateActivation()) {
-                    Log.w("VpnService", "Periodic activation check failed, stopping service")
-                    stopRunner()
-                    return
-                }
-                // Schedule next check
-                activationHandler.postDelayed(this, ACTIVATION_CHECK_INTERVAL)
-            }
-        }
-        
-        // Start first check
-        activationHandler.postDelayed(activationCheckRunnable!!, ACTIVATION_CHECK_INTERVAL)
-        Log.d("VpnService", "Started activation monitoring")
-    }
-
-    private fun stopActivationMonitoring() {
-        activationCheckRunnable?.let {
-            activationHandler.removeCallbacks(it)
-            activationCheckRunnable = null
-        }
-        Log.d("VpnService", "Stopped activation monitoring")
-    }
-
-    private fun notifyActivationExpired() {
-        try {
-            // Create intent to open activation activity
-            val intent = Intent(this, io.nekohasekai.sagernet.ui.ActivationActivity::class.java).apply {
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
-            }
-            startActivity(intent)
-        } catch (e: Exception) {
-            Log.e("VpnService", "Error launching activation activity: ${e.message}")
-        }
     }
 
     override var wakeLock: PowerManager.WakeLock? = null
@@ -136,7 +62,6 @@ class VpnService : BaseVpnService(),
     }
 
     override fun killProcesses() {
-        stopActivationMonitoring()
         conn?.close()
         conn = null
         super.killProcesses()
@@ -153,13 +78,6 @@ class VpnService : BaseVpnService(),
         ServiceNotification(this, profileName, "service-vpn")
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        // Validate activation before starting service
-        if (!validateActivation()) {
-            Log.w("VpnService", "Activation validation failed in onStartCommand")
-            stopRunner()
-            return START_NOT_STICKY
-        }
-
         if (DataStore.serviceMode == Key.MODE_VPN) {
             if (prepare(this) != null) {
                 startActivity(
@@ -179,12 +97,6 @@ class VpnService : BaseVpnService(),
     }
 
     fun startVpn(): Int {
-        // Validate activation before starting VPN
-        if (!validateActivation()) {
-            Log.w("VpnService", "Activation validation failed in startVpn")
-            throw RuntimeException("Service activation expired or invalid")
-        }
-
         // address & route & MTU ...... use GUI config
         val builder = Builder().setConfigureIntent(SagerNet.configureIntent(this))
             .setSession(getString(R.string.app_name))
@@ -346,7 +258,6 @@ class VpnService : BaseVpnService(),
     override fun onRevoke() = stopRunner()
 
     override fun onDestroy() {
-        stopActivationMonitoring()
         DataStore.vpnService = null
         super.onDestroy()
         data.binder.close()

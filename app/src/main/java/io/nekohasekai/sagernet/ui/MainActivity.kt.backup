@@ -66,11 +66,6 @@ import io.nekohasekai.sagernet.ktx.parseProxies
 import io.nekohasekai.sagernet.ktx.readableMessage
 import io.nekohasekai.sagernet.ktx.runOnDefaultDispatcher
 import io.nekohasekai.sagernet.ktx.zlibDecompress
-import io.nekohasekai.sagernet.payment.AuthManager
-import io.nekohasekai.sagernet.payment.LicenseManager
-import io.nekohasekai.sagernet.payment.LoginActivity
-import io.nekohasekai.sagernet.payment.PaymentActivity
-import io.nekohasekai.sagernet.payment.ResetPasswordActivity
 import io.nekohasekai.sagernet.ui.configuration.ConfigurationFragment
 import io.nekohasekai.sagernet.ui.dashboard.DashboardFragment
 import io.nekohasekai.sagernet.ui.tools.ToolsFragment
@@ -78,6 +73,7 @@ import io.nekohasekai.sfa.utils.MIUIUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.io.File
@@ -90,10 +86,11 @@ class MainActivity : ThemedActivity(),
 
     lateinit var binding: LayoutMainBinding
     private lateinit var navigation: NavigationView
-    private lateinit var licenseManager: LicenseManager
-    private lateinit var authManager: AuthManager
-    private var savedInstanceStateStored: Bundle? = null
-    private var isCheckingAuth = false
+    private lateinit var activationValidator: ActivationValidator
+    private var isInitialized = false
+    private var storedSavedInstanceState: Bundle? = null
+    private var isConnecting = false
+    private var validationJob: Job? = null
 
     override val onBackPressedCallback = object : OnBackPressedCallback(enabled = false) {
         override fun handleOnBackPressed() {
@@ -111,56 +108,118 @@ class MainActivity : ThemedActivity(),
         Log.d("MainActivity", "onCreate - Build type: ${BuildConfig.BUILD_TYPE}")
 
         // Store savedInstanceState for later use
-        savedInstanceStateStored = savedInstanceState
+        this.storedSavedInstanceState = savedInstanceState
 
-        // Initialize managers
-        licenseManager = LicenseManager(this)
-        authManager = AuthManager(this)
-
-        // Handle deep link FIRST before auth check
-//        handleDeepLink(intent)
-
-        // Check if user is logged in
-        if (!authManager.isLoggedIn()) {
-            Log.d("MainActivity", "User not logged in, showing login screen")
-
-            // IMPORTANT: Set a placeholder view so app has something to show when returning
-            setContentView(android.R.layout.simple_list_item_1)
-
-            isCheckingAuth = true
-
-        // Handle deep link BEFORE login if it's a password reset
-        handleDeepLink(intent)  // ADD THIS LINE HERE
-
-            startActivityForResult(Intent(this, LoginActivity::class.java), 1002)
+        // Initialize activation validator
+        try {
+            activationValidator = ActivationValidator(this)
+            Log.d("MainActivity", "ActivationValidator initialized successfully")
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to initialize ActivationValidator: ${e.message}")
+            e.printStackTrace()
+            // If ActivationValidator fails to initialize, redirect to activation screen
+            redirectToActivationScreen()
             return
         }
 
-        // Check crypto license on startup
-        if (!licenseManager.isLicenseValid()) {
-            Log.d("MainActivity", "No valid license, showing payment screen")
-
-            // IMPORTANT: Set a placeholder view so app has something to show when returning
-            setContentView(android.R.layout.simple_list_item_1)
-
-            isCheckingAuth = true
-
-        // Handle deep link BEFORE payment screen if it's a password reset
-        handleDeepLink(intent)  // ADD THIS LINE HERE TOO
-
-            val intent = Intent(this, PaymentActivity::class.java)
-            startActivityForResult(intent, 1001)
-            return
-        }
-
-        Log.d("MainActivity", "Valid license found, initializing app")
-        initializeApp(savedInstanceState)
-
-    // Handle deep link AFTER initialization for logged-in users
-    handleDeepLink(intent)  // AND ADD THIS LINE HERE
+        // Always check activation regardless of build type
+        checkActivationWithServer()
     }
 
-    private fun initializeApp(savedInstanceState: Bundle?) {
+    private fun checkActivationWithServer() {
+        Log.d("MainActivity", "Starting server activation check...")
+
+        // Cancel any existing validation job
+        validationJob?.cancel()
+
+        // Stop any running services first
+        try {
+            SagerNet.stopService()
+            stopService(Intent(this, VpnService::class.java))
+        } catch (e: Exception) {
+            Log.d("MainActivity", "No service to stop: ${e.message}")
+        }
+
+        validationJob = CoroutineScope(Dispatchers.Main).launch {
+            try {
+                // Add timeout to prevent hanging
+                withTimeout(15000) { // 15 second timeout
+
+                    Log.d("MainActivity", "Calling activationValidator.validateActivationWithServer()")
+                    val response = activationValidator.validateActivationWithServer()
+
+                    Log.d("MainActivity", "Server response - Valid: ${response.isValid}")
+                    Log.d("MainActivity", "Server response - Message: '${response.message}'")
+                    Log.d("MainActivity", "Server response - ExpiresAt: '${response.expiresAt}'")
+                    Log.d("MainActivity", "Server response - RemainingDays: ${response.remainingDays}")
+
+                    if (response.isValid) {
+                        Log.d("MainActivity", "Response is valid, updating local data and initializing app")
+                        // Update local storage with server data
+                        updateLocalActivationData(response)
+                        initializeApp()
+                    } else {
+                        Log.d("MainActivity", "Response is invalid, redirecting to activation screen")
+                        // Clear local data and redirect
+                        clearLocalActivationData()
+                        redirectToActivationScreen()
+                    }
+                }
+            } catch (e: TimeoutCancellationException) {
+                Log.e("MainActivity", "Server activation check timed out")
+                // On timeout, redirect to activation screen
+                clearLocalActivationData()
+                redirectToActivationScreen()
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Server activation check failed: ${e.message}")
+                e.printStackTrace()
+                clearLocalActivationData()
+                redirectToActivationScreen()
+            }
+        }
+    }
+
+    private fun updateLocalActivationData(response: ActivationValidator.ActivationCheckResponse) {
+        try {
+            DataStore.isActivated = response.isValid
+
+            // Parse expiration date from server
+            response.expiresAt?.let { expiresAt ->
+                try {
+                    val serverDate = java.time.Instant.parse(expiresAt)
+                    DataStore.activationExpiry = serverDate.toEpochMilli()
+                } catch (e: Exception) {
+                    // Fallback: calculate from remaining days
+                    val remainingMs = response.remainingDays * 24L * 60 * 60 * 1000
+                    DataStore.activationExpiry = System.currentTimeMillis() + remainingMs
+                }
+            }
+
+            // Store device ID and a validation token
+            DataStore.deviceId = activationValidator.generateDeviceId()
+            DataStore.activationCodeHash = "server_validated_${System.currentTimeMillis()}"
+
+            Log.d("MainActivity", "Local activation data updated - Expires: ${java.util.Date(DataStore.activationExpiry)}")
+
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Error updating local activation data: ${e.message}")
+        }
+    }
+
+    private fun clearLocalActivationData() {
+        DataStore.isActivated = false
+        DataStore.activationExpiry = 0L
+        DataStore.deviceId = ""
+        DataStore.activationCodeHash = ""
+        Log.d("MainActivity", "Local activation data cleared")
+    }
+
+    private fun initializeApp() {
+        if (isInitialized) return
+        isInitialized = true
+
+        Log.d("MainActivity", "Initializing app with valid activation")
+
         binding = LayoutMainBinding.inflate(layoutInflater)
         binding.fab.initProgress(binding.fabProgress)
 
@@ -203,23 +262,33 @@ class MainActivity : ThemedActivity(),
             }
         }
 
-        if (savedInstanceState == null) {
+        // Use the stored savedInstanceState
+        if (storedSavedInstanceState == null) {
             displayFragmentWithId(R.id.nav_configuration)
         }
 
-        // FAB click with crypto license check
+        // Enhanced FAB click with proper state management
         binding.fab.setOnClickListener {
+//            if (isConnecting) {
+//                Log.d("MainActivity", "Already connecting, ignoring click")
+//                return@setOnClickListener
+//            }
+
+//            Log.d("MainActivity", "FAB clicked - Current state: ${DataStore.serviceState}")
+
             if (DataStore.serviceState.canStop) {
                 Log.d("MainActivity", "Stopping service")
                 SagerNet.stopService()
             } else {
-                // Check crypto license before connecting
-                if (licenseManager.isLicenseValid()) {
-                    Log.d("MainActivity", "License valid, connecting")
-                    connect.launch(null)
-                } else {
-                    Log.d("MainActivity", "License expired, showing payment screen")
-                    showLicenseExpiredDialog()
+                Log.d("MainActivity", "Validating before connecting")
+                validateBeforeServiceAction { isValid ->
+                    if (isValid) {
+                        Log.d("MainActivity", "Validation successful, launching connection")
+                        connect.launch(null)
+                    } else {
+                        Log.d("MainActivity", "Validation failed, showing activation dialog")
+                        showActivationExpiredDialog()
+                    }
                 }
             }
         }
@@ -273,112 +342,145 @@ class MainActivity : ThemedActivity(),
         } catch (e: Exception) {
             Logs.w(e)
         }
+    }
 
-        // Ensure drawer is closed on startup
-        binding.drawerLayout.post {
-            binding.drawerLayout.closeDrawers()
+    private fun validateBeforeServiceAction(callback: (Boolean) -> Unit) {
+        if (isConnecting) {
+            Log.d("MainActivity", "Already validating, skipping")
+            callback(false)
+            return
+        }
+
+        isConnecting = true
+
+        // Cancel any existing validation
+        validationJob?.cancel()
+
+        validationJob = CoroutineScope(Dispatchers.Main).launch {
+            try {
+                withTimeout(10000) { // 10 second timeout
+                    Log.d("MainActivity", "Starting validation before service action")
+                    val response = activationValidator.validateActivationWithServer()
+
+                    Log.d("MainActivity", "Validation response: ${response.isValid}")
+
+                    if (response.isValid) {
+                        updateLocalActivationData(response)
+                        isConnecting = false
+                        callback(true)
+                    } else {
+                        clearLocalActivationData()
+                        isConnecting = false
+                        callback(false)
+                    }
+                }
+            } catch (e: TimeoutCancellationException) {
+                Log.e("MainActivity", "Service validation timed out")
+                isConnecting = false
+                callback(false)
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Service validation failed: ${e.message}")
+                e.printStackTrace()
+                isConnecting = false
+                callback(false)
+            }
         }
     }
 
-    private fun showLicenseExpiredDialog() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle("Subscription Required")
-            .setMessage("Your VPN subscription has expired. Please subscribe to continue using the VPN.")
-            .setPositiveButton("Subscribe") { _, _ ->
-                val intent = Intent(this, PaymentActivity::class.java)
+    private fun redirectToActivationScreen() {
+        Log.d("MainActivity", "Redirecting to activation screen")
+
+        try {
+            val intent = Intent(this, ActivationActivity::class.java)
+            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+
+            // Check if ActivationActivity exists
+            val resolveInfo = packageManager.resolveActivity(intent, 0)
+            if (resolveInfo != null) {
+                Log.d("MainActivity", "ActivationActivity found, starting it")
                 startActivity(intent)
+                finish()
+            } else {
+                Log.e("MainActivity", "ActivationActivity not found!")
+                // Fallback: show a dialog instead
+                showActivationRequiredDialog()
+            }
+        } catch (e: Exception) {
+            Log.e("MainActivity", "Failed to start ActivationActivity: ${e.message}")
+            e.printStackTrace()
+            showActivationRequiredDialog()
+        }
+    }
+
+    private fun showActivationRequiredDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Activation Required")
+            .setMessage("Please activate your VPN service. ActivationActivity not available.")
+            .setPositiveButton("OK") { _, _ ->
+                finish()
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    override fun onResume() {
+        super.onResume()
+
+        // Re-check activation every time app resumes (only if app is initialized)
+        if (isInitialized && !isConnecting) {
+            Log.d("MainActivity", "Re-checking activation on resume")
+
+            // Cancel any existing validation
+            validationJob?.cancel()
+
+            validationJob = CoroutineScope(Dispatchers.Main).launch {
+                try {
+                    withTimeout(10000) { // 10 second timeout
+                        val response = activationValidator.validateActivationWithServer()
+                        if (!response.isValid) {
+                            Log.d("MainActivity", "Activation invalid on resume, redirecting")
+                            clearLocalActivationData()
+                            redirectToActivationScreen()
+                        } else {
+                            updateLocalActivationData(response)
+                        }
+                    }
+                } catch (e: TimeoutCancellationException) {
+                    Log.e("MainActivity", "Resume activation check timed out")
+                    // Don't redirect on timeout during resume, just log it
+                } catch (e: Exception) {
+                    Log.e("MainActivity", "Resume activation check failed: ${e.message}")
+                    // Don't redirect on resume errors, just log them
+                }
+            }
+        }
+    }
+
+    private fun showActivationExpiredDialog() {
+        MaterialAlertDialogBuilder(this)
+            .setTitle("Activation Required")
+            .setMessage("Your VPN service activation has expired or is invalid. Please reactivate to continue.")
+            .setPositiveButton("Activate") { _, _ ->
+                redirectToActivationScreen()
             }
             .setNegativeButton("Cancel", null)
             .setCancelable(false)
             .show()
     }
 
-    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-        super.onActivityResult(requestCode, resultCode, data)
-
-        Log.d("MainActivity", "=== onActivityResult called ===")
-        Log.d("MainActivity", "requestCode: $requestCode")
-        Log.d("MainActivity", "resultCode: $resultCode")
-        Log.d("MainActivity", "isCheckingAuth: $isCheckingAuth")
-        Log.d("MainActivity", "binding initialized: ${::binding.isInitialized}")
-
-        if (requestCode == 1001 || requestCode == 1002) {
-            isCheckingAuth = false
-
-            if (resultCode == RESULT_OK) {
-                Log.d("MainActivity", "Auth successful")
-
-                // Check license
-                val isValid = licenseManager.isLicenseValid()
-                Log.d("MainActivity", "License valid: $isValid")
-
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    if (!::binding.isInitialized) {
-                        Log.d("MainActivity", "About to call initializeApp")
-                        try {
-                            initializeApp(savedInstanceStateStored)
-                            Log.d("MainActivity", "initializeApp completed")
-                        } catch (e: Exception) {
-                            Log.e("MainActivity", "initializeApp FAILED!", e)
-                            e.printStackTrace()
-                        }
-                    } else {
-                        Log.d("MainActivity", "Binding already initialized, skipping")
-                    }
-                }, 300)
-            } else {
-                Log.d("MainActivity", "Auth cancelled, finishing")
-                finish()
-            }
-        }
-    }
-
-    override fun onResume() {
-        super.onResume()
-        // License check removed - onCreate and onActivityResult handle everything
-    }
-
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        setIntent(intent)
-        handleDeepLink(intent)
-    }
 
-private fun handleDeepLink(intent: Intent?) {
-    val uri = intent?.data ?: return
+        val uri = intent.data ?: return
 
-    Log.d("MainActivity", "Deep link detected: $uri")
-
-    when {
-        // Handle password reset deep link
-        (uri.scheme == "vvpn" && uri.host == "reset-password") ||
-        (uri.scheme == "https" && uri.host == "vvpn.space" && uri.path == "/reset-password") -> {
-            val token = uri.getQueryParameter("token")
-            Log.d("MainActivity", "Password reset deep link - token: ${token?.take(10)}...")
-            
-            // IMPORTANT: Launch ResetPasswordActivity regardless of login state
-            val resetIntent = Intent(this, ResetPasswordActivity::class.java).apply {
-                putExtra("token", token)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
-            }
-            startActivity(resetIntent)
-            
-            // Don't return here - let the auth flow continue if needed
-        }
-        // Handle subscription import
-        uri.scheme == "husi" && uri.host == "subscription" || uri.scheme == "sing-box" -> {
-            runOnDefaultDispatcher {
+        runOnDefaultDispatcher {
+            if (uri.scheme == "husi" && uri.host == "subscription" || uri.scheme == "sing-box") {
                 importSubscription(uri)
-            }
-        }
-        // Handle profile import
-        else -> {
-            runOnDefaultDispatcher {
+            } else {
                 importProfile(uri)
             }
         }
     }
-}
 
     fun urlTest(): Int {
         if (!DataStore.serviceState.connected || connection.service == null) {
@@ -541,11 +643,10 @@ private fun handleDeepLink(intent: Intent?) {
     }
 
     override fun onNavigationItemSelected(item: MenuItem): Boolean {
-        // Close drawer first
-        binding.drawerLayout.closeDrawers()
-
-        // Then navigate to the selected item
-        return displayFragmentWithId(item.itemId)
+        if (item.isChecked) binding.drawerLayout.closeDrawers() else {
+            return displayFragmentWithId(item.itemId)
+        }
+        return true
     }
 
     @SuppressLint("CommitTransaction")
@@ -563,46 +664,10 @@ private fun handleDeepLink(intent: Intent?) {
                 displayFragment(ConfigurationFragment())
             }
             R.id.nav_about -> displayFragment(AboutFragment())
-            R.id.nav_license -> displayFragment(LicenseFragment())
-            R.id.nav_logout -> {
-                showLogoutConfirmation()
-                return true
-            }
             else -> return false
         }
         navigation.menu.findItem(id).isChecked = true
         return true
-    }
-
-    private fun showLogoutConfirmation() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle("Logout")
-            .setMessage("Are you sure you want to logout? Your VPN will be disconnected.")
-            .setPositiveButton("Logout") { _, _ ->
-                performLogout()
-            }
-            .setNegativeButton("Cancel", null)
-            .show()
-    }
-
-    private fun performLogout() {
-        // Stop VPN if running
-        if (DataStore.serviceState.canStop) {
-            SagerNet.stopService()
-        }
-
-        // Clear auth token
-        authManager.logout()
-
-        // Clear license
-        licenseManager.clearLicense()
-
-        // CRITICAL: Close drawer before launching LoginActivity
-        binding.drawerLayout.closeDrawers()
-
-        // Launch LoginActivity WITHOUT clearing the task
-        isCheckingAuth = true
-        startActivityForResult(Intent(this, LoginActivity::class.java), 1002)
     }
 
     private fun changeState(
@@ -613,8 +678,10 @@ private fun handleDeepLink(intent: Intent?) {
         DataStore.serviceState = state
         if (state == BaseService.State.RequiredLocation) requestLocationPermission()
 
-        binding.fab.changeState(state, DataStore.serviceState, animate)
-        binding.stats.changeState(state)
+        if (::binding.isInitialized) {
+            binding.fab.changeState(state, DataStore.serviceState, animate)
+            binding.stats.changeState(state)
+        }
 
         if (msg != null) snackbar(getString(R.string.vpn_error, msg)).show()
 
@@ -629,14 +696,27 @@ private fun handleDeepLink(intent: Intent?) {
     }
 
     override fun snackbarInternal(text: CharSequence): Snackbar {
-        return Snackbar.make(binding.coordinator, text, Snackbar.LENGTH_LONG).apply {
-            if (binding.fab.isShown) {
-                anchorView = binding.fab
+        return if (::binding.isInitialized) {
+            Snackbar.make(binding.coordinator, text, Snackbar.LENGTH_LONG).apply {
+                if (binding.fab.isShown) {
+                    anchorView = binding.fab
+                }
             }
+        } else {
+            Snackbar.make(findViewById(android.R.id.content), text, Snackbar.LENGTH_LONG)
         }
     }
 
     override fun stateChanged(state: BaseService.State, profileName: String?, msg: String?) {
+//        Log.d("MainActivity", "State changed to: $state")
+
+        // Reset connecting flag when state becomes idle
+//        if (state == BaseService.State.Idle) {
+//            isConnecting = false
+//        }
+
+        // Don't validate activation for every state change - this causes issues
+        // Only validate when explicitly needed
         changeState(state, msg, true)
     }
 
@@ -656,6 +736,7 @@ private fun handleDeepLink(intent: Intent?) {
     }
 
     private val connect = registerForActivityResult(VpnRequestActivity.StartService()) { denied ->
+        isConnecting = false
         if (denied) {
             Log.d("MainActivity", "VPN permission denied")
             snackbar(R.string.vpn_permission_denied).show()
@@ -665,7 +746,9 @@ private fun handleDeepLink(intent: Intent?) {
     }
 
     override fun cbSpeedUpdate(stats: SpeedDisplayData) {
-        binding.stats.updateSpeed(stats.txRateProxy, stats.rxRateProxy)
+        if (::binding.isInitialized) {
+            binding.stats.updateSpeed(stats.txRateProxy, stats.rxRateProxy)
+        }
     }
 
     override fun cbTrafficUpdate(data: TrafficData) {
@@ -698,6 +781,7 @@ private fun handleDeepLink(intent: Intent?) {
     }
 
     override fun onDestroy() {
+        validationJob?.cancel()
         super.onDestroy()
         GroupManager.userInterface = null
         DataStore.configurationStore.unregisterChangeListener(this)
@@ -708,11 +792,13 @@ private fun handleDeepLink(intent: Intent?) {
         when (keyCode) {
             KeyEvent.KEYCODE_DPAD_LEFT -> {
                 if (super.onKeyDown(keyCode, event)) return true
-                binding.drawerLayout.open()
-                navigation.requestFocus()
+                if (::binding.isInitialized) {
+                    binding.drawerLayout.open()
+                    navigation.requestFocus()
+                }
             }
             KeyEvent.KEYCODE_DPAD_RIGHT -> {
-                if (binding.drawerLayout.isOpen) {
+                if (::binding.isInitialized && binding.drawerLayout.isOpen) {
                     binding.drawerLayout.close()
                     return true
                 }
@@ -720,7 +806,7 @@ private fun handleDeepLink(intent: Intent?) {
         }
 
         if (super.onKeyDown(keyCode, event)) return true
-        if (binding.drawerLayout.isOpen) return false
+        if (::binding.isInitialized && binding.drawerLayout.isOpen) return false
 
         val fragment = supportFragmentManager.findFragmentById(R.id.fragment_holder) as? ToolbarFragment
         return fragment != null && fragment.onKeyDown(keyCode, event)

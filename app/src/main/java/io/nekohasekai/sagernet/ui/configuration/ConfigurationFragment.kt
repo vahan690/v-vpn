@@ -1361,8 +1361,8 @@ class ConfigurationFragment @JvmOverloads constructor(
                 }
 
                 profileName.text = proxyEntity.displayName()
-                // Check if this is Germany profile and hide technical details
-                val isGermanyProfile = proxyEntity.displayName() == "Germany"
+                // Check if this is Unlock the World profile and hide technical details
+                val isGermanyProfile = proxyEntity.displayName() == "Unlock the World"
                 if (isGermanyProfile) {
                     profileType.text = "VPN Server"
                     profileAddress.text = ""
@@ -1461,7 +1461,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                     }
                 }
 
-                val isGermany = proxyEntity.displayName() == "Germany"
+                val isGermany = proxyEntity.displayName() == "Unlock the World"
                 shareButton.isGone = true  // Always hide share button
                 editButton.isGone = select || isGermany
                 removeButton.isGone = select || isGermany
@@ -1509,7 +1509,7 @@ class ConfigurationFragment @JvmOverloads constructor(
 //                            } else ResultLocal
                         val validateResult = if ((parentFragment as? ConfigurationFragment)?.securityAdvisory == true) {
                             // Skip security check for Germany profile
-                            if (proxyEntity.displayName() == "Germany" || proxyEntity.displayName() == "VPN Server") {
+                            if (proxyEntity.displayName() == "Unlock the World" || proxyEntity.displayName() == "VPN Server") {
                                 ResultLocal
                             } else {
                                 proxyEntity.requireBean().isInsecure()

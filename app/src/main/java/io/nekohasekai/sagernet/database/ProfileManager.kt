@@ -93,7 +93,7 @@ object ProfileManager {
 
         val bean = io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean().apply {
             protocolVersion = io.nekohasekai.sagernet.fmt.hysteria.HysteriaBean.PROTOCOL_VERSION_2
-            name = "Germany"
+            name = "Unlock the World"
             serverAddress = "62.171.179.248"
             serverPorts = "22153"
             authPayload = "KKX7uSdSG8K3g54d5fh4"
@@ -115,17 +115,17 @@ suspend fun ensureDefaultProfile() {
         val allProfiles = SagerDatabase.proxyDao.getAll()
         android.util.Log.d("ProfileManager", "Total profiles found: ${allProfiles.size}")
 
-        val hasGermanyProfile = allProfiles.any { it.displayName() == "Germany" }
-        android.util.Log.d("ProfileManager", "Has Germany profile: $hasGermanyProfile")
+        val hasGermanyProfile = allProfiles.any { it.displayName() == "Unlock the World" }
+        android.util.Log.d("ProfileManager", "Has Unlock the World profile: $hasGermanyProfile")
 
         if (allProfiles.isEmpty() || !hasGermanyProfile) {
-            android.util.Log.d("ProfileManager", "Creating default Germany profile...")
+            android.util.Log.d("ProfileManager", "Creating default Unlock the World profile...")
             val groups = SagerDatabase.groupDao.allGroups()
             android.util.Log.d("ProfileManager", "Groups found: ${groups.size}")
             val defaultGroupId = groups.firstOrNull()?.id ?: 1L
             android.util.Log.d("ProfileManager", "Using group ID: $defaultGroupId")
             createDefaultHysteria2Profile(defaultGroupId)
-            android.util.Log.d("ProfileManager", "Germany profile created successfully")
+            android.util.Log.d("ProfileManager", "Unlock the World profile created successfully")
         }
     } catch (e: Exception) {
         android.util.Log.e("ProfileManager", "Error in ensureDefaultProfile", e)

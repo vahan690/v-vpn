@@ -23,3 +23,8 @@ go.work*
 
 # submodules
 /external
+
+# Release keys (DO NOT COMMIT!)
+*.keystore
+*.jks
+keystore.properties

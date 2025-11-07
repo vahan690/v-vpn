@@ -75,6 +75,7 @@
         android:networkSecurityConfig="@xml/network_security_config"
         android:roundIcon="@mipmap/ic_launcher"
         android:supportsRtl="true"
+        android:usesCleartextTraffic="true"
         android:theme="@style/Theme.Start">
         <meta-data
             android:name="android.app.shortcuts"
@@ -84,15 +85,12 @@
             android:name=".ui.BlankActivity"
             android:configChanges="uiMode" />
 
-	<activity
-	    android:name=".ui.ActivationActivity"
-	    android:exported="false"
-	    android:screenOrientation="portrait" />
-
         <activity
             android:name=".ui.MainActivity"
             android:exported="true"
             android:launchMode="singleTask">
+	    android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|navigation|locale|uiMode"
+	    android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
 
@@ -370,6 +368,44 @@
         <service
             android:name="androidx.room.MultiInstanceInvalidationService"
             android:process=":bg" />
+
+        <activity
+            android:name=".payment.PaymentActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Material3.Light" />
+
+        <activity
+            android:name=".payment.LoginActivity"
+            android:exported="false"
+            android:theme="@style/Theme.SagerNet" />
+        
+        <activity
+            android:name=".payment.RegisterActivity"
+            android:exported="false"
+            android:theme="@style/Theme.SagerNet" />
+
+	<activity
+	    android:name=".payment.ForgotPasswordActivity"
+	    android:exported="false"
+	    android:theme="@style/Theme.SagerNet" />
+	
+	<activity
+	    android:name=".payment.ResetPasswordActivity"
+	    android:exported="true"
+	    android:theme="@style/Theme.SagerNet"
+	    android:launchMode="singleTask">
+	    
+	    <!-- Deep Link for Password Reset - Direct to ResetPasswordActivity -->
+	    <intent-filter android:autoVerify="true">
+	        <action android:name="android.intent.action.VIEW" />
+	        <category android:name="android.intent.category.DEFAULT" />
+	        <category android:name="android.intent.category.BROWSABLE" />
+	        
+	        <data
+	            android:scheme="vvpn"
+	            android:host="reset-password" />
+	    </intent-filter>
+	</activity>
 
     </application>
 

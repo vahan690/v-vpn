@@ -1,45 +1,45 @@
--repackageclasses ''
--allowaccessmodification
+# Keep line numbers for debugging
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
 
--keep class io.nekohasekai.sagernet.** { *;}
--keep class moe.matsuri.nb4a.** { *;}
+# Keep your app classes
+-keep class io.nekohasekai.sagernet.** { *; }
 
-# Clean Kotlin
--assumenosideeffects class kotlin.jvm.internal.Intrinsics {
-    static void checkParameterIsNotNull(java.lang.Object, java.lang.String);
-    static void checkExpressionValueIsNotNull(java.lang.Object, java.lang.String);
-    static void checkNotNullExpressionValue(java.lang.Object, java.lang.String);
-    static void checkReturnedValueIsNotNull(java.lang.Object, java.lang.String, java.lang.String);
-    static void checkReturnedValueIsNotNull(java.lang.Object, java.lang.String);
-    static void checkFieldIsNotNull(java.lang.Object, java.lang.String, java.lang.String);
-    static void checkFieldIsNotNull(java.lang.Object, java.lang.String);
-    static void checkNotNull(java.lang.Object);
-    static void checkNotNull(java.lang.Object, java.lang.String);
-    static void checkNotNullParameter(java.lang.Object, java.lang.String);
-    static void throwUninitializedPropertyAccessException(java.lang.String);
+# Keep Retrofit
+-keepattributes Signature, InnerClasses, EnclosingMethod
+-keepattributes RuntimeVisibleAnnotations, RuntimeVisibleParameterAnnotations
+-keepclassmembers,allowshrinking,allowobfuscation interface * {
+    @retrofit2.http.* <methods>;
 }
+-dontwarn javax.annotation.**
+-dontwarn kotlin.Unit
+-keep,allowobfuscation,allowshrinking class kotlin.coroutines.Continuation
+-keep,allowobfuscation,allowshrinking class retrofit2.Response
 
-# ini4j
--keep public class org.ini4j.spi.** { <init>(); }
+# Keep Gson
+-keepattributes Signature
+-keepattributes *Annotation*
+-keep class com.google.gson.** { *; }
 
--dontobfuscate
--keepattributes SourceFile
+# Keep network models
+-keep class io.nekohasekai.sagernet.network.** { *; }
+-keep class io.nekohasekai.sagernet.payment.** { *; }
 
--dontwarn java.beans.BeanInfo
--dontwarn java.beans.FeatureDescriptor
--dontwarn java.beans.IntrospectionException
--dontwarn java.beans.Introspector
--dontwarn java.beans.PropertyDescriptor
--dontwarn java.beans.Transient
--dontwarn java.beans.VetoableChangeListener
--dontwarn java.beans.VetoableChangeSupport
--dontwarn org.apache.harmony.xnet.provider.jsse.SSLParametersImpl
--dontwarn org.bouncycastle.jce.provider.BouncyCastleProvider
--dontwarn org.bouncycastle.jsse.BCSSLParameters
--dontwarn org.bouncycastle.jsse.BCSSLSocket
--dontwarn org.bouncycastle.jsse.provider.BouncyCastleJsseProvider
--dontwarn org.openjsse.javax.net.ssl.SSLParameters
--dontwarn org.openjsse.javax.net.ssl.SSLSocket
--dontwarn org.openjsse.net.ssl.OpenJSSE
--dontwarn java.beans.PropertyVetoException
--dontwarn android.app.ActivityThread
+# Keep OkHttp
+-dontwarn okhttp3.**
+-dontwarn okio.**
+-keep class okhttp3.** { *; }
+
+# Keep Coroutines
+-keepnames class kotlinx.coroutines.internal.MainDispatcherFactory {}
+-keepnames class kotlinx.coroutines.CoroutineExceptionHandler {}
+-dontwarn kotlinx.coroutines.**
+
+# Keep encrypted shared preferences
+-keep class androidx.security.crypto.** { *; }
+
+# Remove logging in release
+-assumenosideeffects class android.util.Log {
+    public static *** d(...);
+    public static *** v(...);
+}
