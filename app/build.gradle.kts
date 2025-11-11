@@ -18,7 +18,7 @@ android {
     defaultConfig {
         applicationId = "io.nekohasekai.sagernet"
         versionCode = 3
-        versionName = "1.2.0"
+        versionName = "1.0.0"
         
         splits.abi {
             reset()

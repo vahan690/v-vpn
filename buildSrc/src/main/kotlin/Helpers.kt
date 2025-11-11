@@ -242,7 +242,7 @@ fun Project.setupApp() {
         applicationVariants.all {
             outputs.all {
                 this as BaseVariantOutputImpl
-                outputFileName = outputFileName.replace(project.name, "husi-$versionName")
+                outputFileName = outputFileName.replace(project.name, "v-vpn-$versionName")
                     .replace("-release", "")
                     .replace("-foss", "")
             }
