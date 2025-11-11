@@ -25,12 +25,14 @@ class LoginActivity : AppCompatActivity() {
     private lateinit var progressBar: ProgressBar
     private lateinit var errorText: TextView
     private lateinit var authManager: AuthManager
+    private lateinit var paymentManager: PaymentManager
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_login)
 
         authManager = AuthManager(this)
+        paymentManager = PaymentManager(this)
 
         emailInput = findViewById(R.id.emailInput)
         passwordInput = findViewById(R.id.passwordInput)
@@ -96,9 +98,10 @@ class LoginActivity : AppCompatActivity() {
                 forgotPasswordButton.isEnabled = true
 
                 if (response.success) {
-                    // Login successful, now fetch and restore license
                     Log.d("LoginActivity", "Login successful for ${response.email}")
-                    fetchAndRestoreLicense()
+                    
+                    // Check for existing license on this device
+                    checkExistingLicense()
                 } else {
                     showError(response.message ?: "Login failed")
                 }
@@ -113,70 +116,55 @@ class LoginActivity : AppCompatActivity() {
         }
     }
 
-private fun fetchAndRestoreLicense() {
-    CoroutineScope(Dispatchers.Main).launch {
-        try {
-            val licenseResponse = withContext(Dispatchers.IO) {
-                authManager.fetchActiveLicense()
-            }
-
-            if (licenseResponse.success && licenseResponse.hasLicense && licenseResponse.license != null) {
-                val license = licenseResponse.license!!
-                Log.d("LoginActivity", "License found: ${license.licenseKey}")
-
-                // Restore license locally
+    private fun checkExistingLicense() {
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
                 val licenseManager = LicenseManager(this@LoginActivity)
+                val existingLicense = licenseManager.getLicenseInfo()
+                val licenseKey = existingLicense["license_key"] ?: ""
 
-                // Calculate expiry (30 days from now for monthly)
-                val expiryMillis = if (license.planId == "monthly") {
-                    System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000)
-                } else {
-                    System.currentTimeMillis() + (365L * 24 * 60 * 60 * 1000)
+                if (licenseKey.isNotEmpty()) {
+                    // Verify existing license with backend
+                    val deviceId = paymentManager.getDeviceId()
+                    val verifyResponse = withContext(Dispatchers.IO) {
+                        paymentManager.verifyLicense(licenseKey, deviceId)
+                    }
+
+                    if (verifyResponse.success && verifyResponse.isValid) {
+                        Log.d("LoginActivity", "Existing license is valid")
+                        
+                        // Update license info if needed
+                        if (verifyResponse.expiryDate != null && verifyResponse.planId != null) {
+                            licenseManager.saveLicense(
+                                licenseKey,
+                                deviceId,
+                                verifyResponse.expiryDate,
+                                verifyResponse.planId,
+                                authManager.getUserEmail()
+                            )
+                        }
+                        
+                        setResult(RESULT_OK)
+                        finish()
+                        return@launch
+                    } else {
+                        Log.d("LoginActivity", "Existing license is invalid: ${verifyResponse.message}")
+                    }
                 }
 
-                val email = emailInput.text.toString().trim()
-
-                val currentDeviceId = android.provider.Settings.Secure.getString(
-                    contentResolver,
-                    android.provider.Settings.Secure.ANDROID_ID
-                )
-
-                licenseManager.saveLicense(
-                    license.licenseKey,
-                    currentDeviceId,
-                    expiryMillis.toString(),
-                    license.planId,
-                    email
-                )
-
-                Log.d("LoginActivity", "License saved successfully")
-
-                // Verify it was saved
-                val savedInfo = licenseManager.getLicenseInfo()
-                Log.d("LoginActivity", "Verification - license_key: ${savedInfo["license_key"]}")
-                Log.d("LoginActivity", "Verification - expiry_date: ${savedInfo["expiry_date"]}")
-                Log.d("LoginActivity", "Verification - isValid: ${licenseManager.isLicenseValid()}")
-
-                // Wait a bit longer to ensure everything is saved
-                kotlinx.coroutines.delay(800)
-
-                // Return success to MainActivity
+                // No valid license found, return to main screen
+                Log.d("LoginActivity", "No valid license found")
                 setResult(RESULT_OK)
                 finish()
-            } else {
-                // No active license, go to payment screen
-                Log.d("LoginActivity", "No active license found")
+
+            } catch (e: Exception) {
+                Log.e("LoginActivity", "Error checking license", e)
+                // Still return OK since login was successful
                 setResult(RESULT_OK)
                 finish()
             }
-        } catch (e: Exception) {
-            Log.e("LoginActivity", "Error fetching license", e)
-            // On error, still return OK since login was successful
-            setResult(RESULT_OK)
-            finish()
         }
     }
-}
 
     private fun showError(message: String) {
         errorText.text = message

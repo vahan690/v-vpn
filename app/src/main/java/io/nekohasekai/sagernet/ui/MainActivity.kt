@@ -82,6 +82,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.security.MessageDigest
+import java.net.URL
+import javax.net.ssl.HttpsURLConnection
+import org.json.JSONObject
 
 class MainActivity : ThemedActivity(),
     SagerConnection.Callback,
@@ -118,7 +121,7 @@ class MainActivity : ThemedActivity(),
         authManager = AuthManager(this)
 
         // Handle deep link FIRST before auth check
-//        handleDeepLink(intent)
+        handleDeepLink(intent)
 
         // Check if user is logged in
         if (!authManager.isLoggedIn()) {
@@ -128,9 +131,6 @@ class MainActivity : ThemedActivity(),
             setContentView(android.R.layout.simple_list_item_1)
 
             isCheckingAuth = true
-
-        // Handle deep link BEFORE login if it's a password reset
-        handleDeepLink(intent)  // ADD THIS LINE HERE
 
             startActivityForResult(Intent(this, LoginActivity::class.java), 1002)
             return
@@ -145,9 +145,6 @@ class MainActivity : ThemedActivity(),
 
             isCheckingAuth = true
 
-        // Handle deep link BEFORE payment screen if it's a password reset
-        handleDeepLink(intent)  // ADD THIS LINE HERE TOO
-
             val intent = Intent(this, PaymentActivity::class.java)
             startActivityForResult(intent, 1001)
             return
@@ -155,9 +152,6 @@ class MainActivity : ThemedActivity(),
 
         Log.d("MainActivity", "Valid license found, initializing app")
         initializeApp(savedInstanceState)
-
-    // Handle deep link AFTER initialization for logged-in users
-    handleDeepLink(intent)  // AND ADD THIS LINE HERE
     }
 
     private fun initializeApp(savedInstanceState: Bundle?) {
@@ -255,20 +249,11 @@ class MainActivity : ThemedActivity(),
             }
         }
 
-        // Consent dialog
+        // Consent dialog - REMOVED: Auto-accept consent to avoid popup
         try {
             val f = File(application.filesDir, "consent")
             if (!f.exists()) {
-                MaterialAlertDialogBuilder(this@MainActivity)
-                    .setTitle(R.string.license)
-                    .setMessage(LICENSE)
-                    .setPositiveButton(android.R.string.ok) { _, _ ->
-                        f.createNewFile()
-                    }
-                    .setNegativeButton(android.R.string.cancel) { _, _ ->
-                        finish()
-                    }
-                    .show()
+                f.createNewFile() // Auto-create consent file without showing dialog
             }
         } catch (e: Exception) {
             Logs.w(e)
@@ -306,26 +291,8 @@ class MainActivity : ThemedActivity(),
             isCheckingAuth = false
 
             if (resultCode == RESULT_OK) {
-                Log.d("MainActivity", "Auth successful")
-
-                // Check license
-                val isValid = licenseManager.isLicenseValid()
-                Log.d("MainActivity", "License valid: $isValid")
-
-                android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                    if (!::binding.isInitialized) {
-                        Log.d("MainActivity", "About to call initializeApp")
-                        try {
-                            initializeApp(savedInstanceStateStored)
-                            Log.d("MainActivity", "initializeApp completed")
-                        } catch (e: Exception) {
-                            Log.e("MainActivity", "initializeApp FAILED!", e)
-                            e.printStackTrace()
-                        }
-                    } else {
-                        Log.d("MainActivity", "Binding already initialized, skipping")
-                    }
-                }, 300)
+                Log.d("MainActivity", "Auth successful - fetching licenses...")
+                fetchAndSaveLicenses()
             } else {
                 Log.d("MainActivity", "Auth cancelled, finishing")
                 finish()
@@ -344,41 +311,41 @@ class MainActivity : ThemedActivity(),
         handleDeepLink(intent)
     }
 
-private fun handleDeepLink(intent: Intent?) {
-    val uri = intent?.data ?: return
+    private fun handleDeepLink(intent: Intent?) {
+        val uri = intent?.data ?: return
 
-    Log.d("MainActivity", "Deep link detected: $uri")
+        Log.d("MainActivity", "Deep link detected: $uri")
 
-    when {
-        // Handle password reset deep link
-        (uri.scheme == "vvpn" && uri.host == "reset-password") ||
-        (uri.scheme == "https" && uri.host == "vvpn.space" && uri.path == "/reset-password") -> {
-            val token = uri.getQueryParameter("token")
-            Log.d("MainActivity", "Password reset deep link - token: ${token?.take(10)}...")
-            
-            // IMPORTANT: Launch ResetPasswordActivity regardless of login state
-            val resetIntent = Intent(this, ResetPasswordActivity::class.java).apply {
-                putExtra("token", token)
-                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+        when {
+            // Handle password reset deep link
+            (uri.scheme == "vvpn" && uri.host == "reset-password") ||
+            (uri.scheme == "https" && uri.host == "vvpn.space" && uri.path == "/reset-password") -> {
+                val token = uri.getQueryParameter("token")
+                Log.d("MainActivity", "Password reset deep link - token: ${token?.take(10)}...")
+
+                // IMPORTANT: Launch ResetPasswordActivity regardless of login state
+                val resetIntent = Intent(this, ResetPasswordActivity::class.java).apply {
+                    putExtra("token", token)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                }
+                startActivity(resetIntent)
+
+                // Don't return here - let the auth flow continue if needed
             }
-            startActivity(resetIntent)
-            
-            // Don't return here - let the auth flow continue if needed
-        }
-        // Handle subscription import
-        uri.scheme == "husi" && uri.host == "subscription" || uri.scheme == "sing-box" -> {
-            runOnDefaultDispatcher {
-                importSubscription(uri)
+            // Handle subscription import
+            uri.scheme == "husi" && uri.host == "subscription" || uri.scheme == "sing-box" -> {
+                runOnDefaultDispatcher {
+                    importSubscription(uri)
+                }
             }
-        }
-        // Handle profile import
-        else -> {
-            runOnDefaultDispatcher {
-                importProfile(uri)
+            // Handle profile import
+            else -> {
+                runOnDefaultDispatcher {
+                    importProfile(uri)
+                }
             }
         }
     }
-}
 
     fun urlTest(): Int {
         if (!DataStore.serviceState.connected || connection.service == null) {
@@ -658,7 +625,7 @@ private fun handleDeepLink(intent: Intent?) {
     private val connect = registerForActivityResult(VpnRequestActivity.StartService()) { denied ->
         if (denied) {
             Log.d("MainActivity", "VPN permission denied")
-            snackbar(R.string.vpn_permission_denied).show()
+            snackbar(getString(R.string.vpn_permission_denied)).show()
         } else {
             Log.d("MainActivity", "VPN permission granted")
         }
@@ -861,5 +828,70 @@ private fun handleDeepLink(intent: Intent?) {
                 resources.getQuantityString(R.plurals.added, proxies.size, proxies.size)
             ).show()
         }
+    }
+
+    // NEW: License fetching functionality
+    private fun fetchAndSaveLicenses() {
+        val deviceId = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID)
+        
+        Thread {
+            try {
+                val url = URL("https://api.vvpn.space/api/license/device/$deviceId")
+                val connection = url.openConnection() as HttpsURLConnection
+                connection.requestMethod = "GET"
+                connection.connectTimeout = 10000
+                connection.readTimeout = 10000
+                
+                val responseCode = connection.responseCode
+                if (responseCode == 200) {
+                    val response = connection.inputStream.bufferedReader().readText()
+                    val json = JSONObject(response)
+                    
+                    if (json.getBoolean("success")) {
+                        val licenses = json.getJSONArray("licenses")
+                        
+                        if (licenses.length() > 0) {
+                            // Save the first valid license
+                            val license = licenses.getJSONObject(0)
+                            val licenseKey = license.getString("license_key")
+                            val planId = license.getString("plan_id")
+                            val expiryDate = license.getString("expiry_date")
+                            val userEmail = license.getString("user_email")
+                            
+                            licenseManager.saveLicense(licenseKey, deviceId, expiryDate, planId, userEmail)
+                            Log.d("MainActivity", "License saved: $licenseKey for $userEmail")
+                        }
+                    }
+                }
+                
+                runOnUiThread { checkLicenseAndProceed() }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Failed to fetch licenses: ${e.message}")
+                runOnUiThread { checkLicenseAndProceed() }
+            }
+        }.start()
+    }
+    
+    private fun checkLicenseAndProceed() {
+        val isValid = licenseManager.isLicenseValid()
+        Log.d("MainActivity", "License valid after fetch: $isValid")
+        
+        if (!isValid) {
+            Log.d("MainActivity", "No valid license, showing payment")
+            showPaymentActivity()
+        } else {
+            Log.d("MainActivity", "Valid license found, continuing to app")
+            // Add a small delay to ensure UI is ready
+            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+                if (!::binding.isInitialized) {
+                    initializeApp(savedInstanceStateStored)
+                }
+            }, 300)
+        }
+    }
+    
+    private fun showPaymentActivity() {
+        val intent = Intent(this, PaymentActivity::class.java)
+        startActivityForResult(intent, 1001)
     }
 }

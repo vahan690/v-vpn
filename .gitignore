@@ -28,3 +28,20 @@ go.work*
 *.keystore
 *.jks
 keystore.properties
+
+# Release keys and sensitive files (DO NOT COMMIT!)
+*.keystore
+*.jks
+keystore.properties
+*-mapping.txt
+*.apk
+app/release/
+
+# Local configuration
+local.properties
+.gradle
+.idea
+build/
+captures/
+.externalNativeBuild
+.cxx

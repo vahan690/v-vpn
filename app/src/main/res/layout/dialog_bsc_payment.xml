@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:fillViewport="true">
+
+<LinearLayout
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="24dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Send Payment - BSC"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/black"
+        android:gravity="center"
+        android:paddingBottom="16dp" />
+
+    <!-- Network Info with better visibility -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#E3F2FD"
+        android:padding="12dp"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:id="@+id/networkText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Network: BSC (BEP20)"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:textColor="#1976D2"
+            android:gravity="center"
+            android:paddingBottom="8dp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="USDT Contract Address:"
+            android:textSize="12sp"
+            android:textColor="#424242"
+            android:gravity="center"
+            android:paddingBottom="4dp" />
+
+        <TextView
+            android:id="@+id/contractText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="0x55d398326f99059fF775485246999027B3197955"
+            android:textSize="13sp"
+            android:textColor="#424242"
+            android:gravity="center"
+            android:fontFamily="monospace"
+            android:background="@android:color/white"
+            android:padding="8dp"
+            android:layout_marginTop="4dp" />
+
+    </LinearLayout>
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Send USDT (BEP20) to the address below"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/black"
+        android:gravity="center"
+        android:paddingBottom="16dp" />
+
+    <!-- Amount with better styling -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#F3E5F5"
+        android:padding="16dp"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Amount to Send:"
+            android:textSize="14sp"
+            android:textColor="#424242"
+            android:gravity="center"
+            android:paddingBottom="4dp" />
+
+        <TextView
+            android:id="@+id/amountText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="5.00 USDT"
+            android:textSize="32sp"
+            android:textStyle="bold"
+            android:textColor="#6200EA"
+            android:gravity="center" />
+
+    </LinearLayout>
+
+    <!-- QR Code with better sizing -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Scan QR Code or copy address below:"
+        android:textSize="14sp"
+        android:textColor="@android:color/black"
+        android:gravity="center"
+        android:paddingBottom="12dp" />
+
+    <ImageView
+        android:id="@+id/qrCodeImage"
+        android:layout_width="220dp"
+        android:layout_height="220dp"
+        android:layout_gravity="center"
+        android:background="@android:color/white"
+        android:padding="8dp"
+        android:layout_marginBottom="16dp"
+        android:contentDescription="Payment QR Code" />
+
+    <!-- Payment Address with improved layout -->
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Wallet Address:"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:textColor="@android:color/black"
+        android:paddingBottom="8dp" />
+
+    <TextView
+        android:id="@+id/addressText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="0x..."
+        android:textSize="14sp"
+        android:textColor="@android:color/black"
+        android:padding="12dp"
+        android:background="#F5F5F5"
+        android:layout_marginBottom="16dp"
+        android:fontFamily="monospace"
+        android:textIsSelectable="true"
+        android:breakStrategy="simple"
+        android:lineSpacingExtra="2dp" />
+
+    <!-- Copy Button -->
+    <Button
+        android:id="@+id/copyAddressButton"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="📋 Copy Address"
+        android:textSize="16sp"
+        android:textColor="@android:color/white"
+        android:backgroundTint="#6200EA"
+        android:layout_marginBottom="16dp" />
+
+    <!-- Status Section -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:background="#FFF3E0"
+        android:padding="12dp"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⏰ Payment Status"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            android:textColor="#E65100"
+            android:gravity="center"
+            android:paddingBottom="4dp" />
+
+        <TextView
+            android:id="@+id/statusText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Waiting for payment on BSC..."
+            android:textSize="14sp"
+            android:textColor="#BF360C"
+            android:gravity="center" />
+
+    </LinearLayout>
+
+    <!-- Cancel Button -->
+    <Button
+        android:id="@+id/cancelButton"
+        android:layout_width="match_parent"
+        android:layout_height="56dp"
+        android:text="Cancel"
+        android:textSize="16sp"
+        android:textColor="#6200EA"
+        android:backgroundTint="@android:color/white"
+        android:background="?attr/selectableItemBackground" />
+
+</LinearLayout>
+
+</ScrollView>

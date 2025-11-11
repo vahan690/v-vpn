@@ -3,11 +3,12 @@ package io.nekohasekai.sagernet.payment
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
-import android.content.Intent
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.os.Bundle
 import android.util.Log
+import android.os.Handler
+import android.os.Looper
 import android.view.View
 import android.widget.*
 import androidx.appcompat.app.AlertDialog
@@ -15,169 +16,172 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import io.nekohasekai.sagernet.R
-import java.text.SimpleDateFormat
-import java.util.Locale
-import java.util.TimeZone
 import kotlinx.coroutines.*
 
 class PaymentActivity : AppCompatActivity() {
 
+    private lateinit var networkSelector: RadioGroup
+    private lateinit var bscRadio: RadioButton
     private lateinit var monthlyButton: Button
     private lateinit var yearlyButton: Button
-    private lateinit var activateLicenseButton: Button
+    private lateinit var enterLicenseButton: Button
     private lateinit var progressBar: ProgressBar
+    private lateinit var errorText: TextView
+
+    private lateinit var authManager: AuthManager
     private lateinit var paymentManager: PaymentManager
     private lateinit var licenseManager: LicenseManager
-    private lateinit var authManager: AuthManager
 
-    private var paymentCheckJob: Job? = null
+    private var currentOrderId: String? = null
+    private var pollingJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        // Hide action bar to prevent overlap issues
+        supportActionBar?.hide()
+        
         setContentView(R.layout.activity_payment)
 
+        authManager = AuthManager(this)
         paymentManager = PaymentManager(this)
         licenseManager = LicenseManager(this)
-        authManager = AuthManager(this)
 
+        networkSelector = findViewById(R.id.networkSelector)
+        bscRadio = findViewById(R.id.bscRadio)
         monthlyButton = findViewById(R.id.monthlyButton)
         yearlyButton = findViewById(R.id.yearlyButton)
-        activateLicenseButton = findViewById(R.id.activateLicenseButton)
+        enterLicenseButton = findViewById(R.id.enterLicenseButton)
         progressBar = findViewById(R.id.progressBar)
+        errorText = findViewById(R.id.errorText)
+
+        // Always select BSC (no TRON option)
+        bscRadio.isChecked = true
+        networkSelector.visibility = View.VISIBLE
 
         monthlyButton.setOnClickListener {
-            createPayment("monthly")
+            createPaymentOrder("monthly")
         }
 
         yearlyButton.setOnClickListener {
-            createPayment("yearly")
+            createPaymentOrder("yearly")
         }
 
-        activateLicenseButton.setOnClickListener {
-            showLicenseInputDialog()
+        enterLicenseButton.setOnClickListener {
+            showEnterLicenseDialog()
         }
     }
 
-    private fun createPayment(planId: String) {
+    private fun createPaymentOrder(planId: String) {
+        val token = authManager.getAuthToken()
+        if (token == null) {
+            showError("Please login first")
+            return
+        }
+
         progressBar.visibility = View.VISIBLE
         monthlyButton.isEnabled = false
         yearlyButton.isEnabled = false
-        activateLicenseButton.isEnabled = false
+        errorText.visibility = View.GONE
 
         CoroutineScope(Dispatchers.Main).launch {
             try {
-                val deviceId = android.provider.Settings.Secure.getString(
-                    contentResolver,
-                    android.provider.Settings.Secure.ANDROID_ID
-                )
-
-                // Get user info from AuthManager
-                val user = authManager.getCurrentUser()
-
+                val deviceId = paymentManager.getDeviceId()
                 val result = withContext(Dispatchers.IO) {
-                    paymentManager.createPayment(planId, deviceId, user?.id, user?.email)
+                    paymentManager.createBscPayment(planId, deviceId, token)
                 }
 
                 progressBar.visibility = View.GONE
+                monthlyButton.isEnabled = true
+                yearlyButton.isEnabled = true
 
                 if (result.isSuccess) {
                     val order = result.getOrNull()!!
-                    showPaymentDialog(
-                        order.paymentAddress,
-                        order.amount,
-                        order.orderId,
-                        planId
-                    )
+                    currentOrderId = order.orderId
+                    showBscPaymentDialog(order)
                 } else {
-                    showError(result.exceptionOrNull()?.message ?: "Failed to create payment")
-                    monthlyButton.isEnabled = true
-                    yearlyButton.isEnabled = true
-                    activateLicenseButton.isEnabled = true
+                    showError(result.exceptionOrNull()?.message ?: "Failed to create order")
                 }
             } catch (e: Exception) {
                 progressBar.visibility = View.GONE
                 monthlyButton.isEnabled = true
                 yearlyButton.isEnabled = true
-                activateLicenseButton.isEnabled = true
-                showError("Network error: ${e.message}")
-                Log.e("PaymentActivity", "Error creating payment", e)
+                showError("Error: ${e.message}")
+                Log.e("PaymentActivity", "Order creation error", e)
             }
         }
     }
 
-    private fun showPaymentDialog(address: String, amount: String, orderId: String, planId: String) {
-        val dialogView = layoutInflater.inflate(R.layout.dialog_payment, null)
+    private fun showBscPaymentDialog(order: PaymentManager.PaymentOrder) {
+        val dialogView = layoutInflater.inflate(R.layout.dialog_bsc_payment, null)
 
-        val addressText = dialogView.findViewById<TextView>(R.id.paymentAddress)
-        val amountText = dialogView.findViewById<TextView>(R.id.paymentAmount)
+        val networkText = dialogView.findViewById<TextView>(R.id.networkText)
+        val contractText = dialogView.findViewById<TextView>(R.id.contractText)
+        val amountText = dialogView.findViewById<TextView>(R.id.amountText)
+        val addressText = dialogView.findViewById<TextView>(R.id.addressText)
         val qrCodeImage = dialogView.findViewById<ImageView>(R.id.qrCodeImage)
         val copyButton = dialogView.findViewById<Button>(R.id.copyAddressButton)
-        val statusText = dialogView.findViewById<TextView>(R.id.paymentStatus)
         val cancelButton = dialogView.findViewById<Button>(R.id.cancelButton)
+        val statusText = dialogView.findViewById<TextView>(R.id.statusText)
 
-        addressText.text = address
-        amountText.text = "$amount USDT"
+        networkText.text = "Network: ${order.network} (BEP20)"
+        contractText.text = "Contract: ${order.usdtContract}"
+        amountText.text = "${order.amount} ${order.currency}"
+        addressText.text = order.paymentAddress
 
-        // Generate QR code
-        generateQRCode(address, qrCodeImage)
+        // Generate QR Code
+        try {
+            val qrBitmap = generateQRCode(order.paymentAddress, 512, 512)
+            qrCodeImage.setImageBitmap(qrBitmap)
+        } catch (e: Exception) {
+            Log.e("PaymentActivity", "QR generation error", e)
+        }
 
         val dialog = AlertDialog.Builder(this)
-            .setTitle("Send Payment")
             .setView(dialogView)
             .setCancelable(false)
             .create()
 
         copyButton.setOnClickListener {
             val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            val clip = ClipData.newPlainText("Payment Address", address)
+            val clip = ClipData.newPlainText("BSC Address", order.paymentAddress)
             clipboard.setPrimaryClip(clip)
-            Toast.makeText(this, "Address copied to clipboard", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Address copied!", Toast.LENGTH_SHORT).show()
         }
 
         cancelButton.setOnClickListener {
-            paymentCheckJob?.cancel()
+            pollingJob?.cancel()
             dialog.dismiss()
-            monthlyButton.isEnabled = true
-            yearlyButton.isEnabled = true
-            activateLicenseButton.isEnabled = true
         }
 
         dialog.setOnDismissListener {
-            paymentCheckJob?.cancel()
+            pollingJob?.cancel()
         }
 
         dialog.show()
 
-        // Start checking for payment
-        startPaymentCheck(orderId, planId, statusText, dialog)
+        // Start polling for payment status
+        startPaymentPolling(order.orderId, statusText, dialog)
     }
 
-    private fun generateQRCode(text: String, imageView: ImageView) {
-        try {
-            val writer = QRCodeWriter()
-            val bitMatrix = writer.encode(text, BarcodeFormat.QR_CODE, 512, 512)
-            val width = bitMatrix.width
-            val height = bitMatrix.height
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
+    private fun generateQRCode(content: String, width: Int, height: Int): Bitmap {
+        val writer = QRCodeWriter()
+        val bitMatrix = writer.encode(content, BarcodeFormat.QR_CODE, width, height)
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.RGB_565)
 
-            for (x in 0 until width) {
-                for (y in 0 until height) {
-                    bitmap.setPixel(x, y, if (bitMatrix[x, y]) Color.BLACK else Color.WHITE)
-                }
+        for (x in 0 until width) {
+            for (y in 0 until height) {
+                bitmap.setPixel(x, y, if (bitMatrix[x, y]) Color.BLACK else Color.WHITE)
             }
-
-            imageView.setImageBitmap(bitmap)
-        } catch (e: Exception) {
-            Log.e("PaymentActivity", "Error generating QR code", e)
         }
+
+        return bitmap
     }
 
-    private fun startPaymentCheck(orderId: String, planId: String, statusText: TextView, dialog: AlertDialog) {
-        statusText.text = "Waiting for payment..."
-
-        paymentCheckJob = CoroutineScope(Dispatchers.Main).launch {
+    private fun startPaymentPolling(orderId: String, statusText: TextView, dialog: AlertDialog) {
+        pollingJob = CoroutineScope(Dispatchers.Main).launch {
             var attempts = 0
-            val maxAttempts = 60 // 5 minutes (60 * 5 seconds)
+            val maxAttempts = 180 // 30 minutes (10 sec intervals)
 
             while (attempts < maxAttempts && isActive) {
                 try {
@@ -185,181 +189,134 @@ class PaymentActivity : AppCompatActivity() {
                         paymentManager.checkPaymentStatus(orderId)
                     }
 
-                    if (response.success && response.status == "completed") {
-                        // Payment successful!
-                        statusText.text = "Payment confirmed! Activating license..."
-
-                        // Activate license
-                        val licenseKey = response.licenseKey
-                        if (licenseKey != null) {
-                            val deviceId = android.provider.Settings.Secure.getString(
-                                contentResolver,
-                                android.provider.Settings.Secure.ANDROID_ID
-                            )
-
-                            // Calculate expiry date
-                            val expiryMillis = if (planId == "monthly") {
-                                System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000)
-                            } else {
-                                System.currentTimeMillis() + (365L * 24 * 60 * 60 * 1000)
+                    if (response.success) {
+                        when (response.status) {
+                            "completed" -> {
+                                if (response.licenseKey != null) {
+                                    saveLicenseAndFinish(response.licenseKey)
+                                    dialog.dismiss()
+                                    return@launch
+                                }
                             }
-
-                            // NEW: Save license with user email
-                            val userEmail = authManager.getUserEmail()
-                            licenseManager.saveLicense(
-                                licenseKey, 
-                                deviceId, 
-                                expiryMillis.toString(), 
-                                planId,
-                                authManager.getStoredEmail() ?: "email@example.com"  // ← Use actual email
-                            )
-
-                            Log.d("PaymentActivity", "License saved successfully: $licenseKey for user: $userEmail")
-
-                            dialog.dismiss()
-                            showSuccess()
-                        } else {
-                            statusText.text = "Error: No license key received"
+                            "pending" -> {
+                                statusText.text = "Waiting for payment on BSC..."
+                            }
                         }
-                        break
-                    } else if (response.status == "expired") {
-                        statusText.text = "Payment expired. Please try again."
-                        delay(2000)
-                        dialog.dismiss()
-                        monthlyButton.isEnabled = true
-                        yearlyButton.isEnabled = true
-                        activateLicenseButton.isEnabled = true
-                        break
                     }
-
-                    attempts++
-                    delay(5000) // Check every 5 seconds
-
                 } catch (e: Exception) {
-                    Log.e("PaymentActivity", "Error checking payment", e)
-                    delay(5000)
+                    Log.e("PaymentActivity", "Polling error", e)
                 }
+
+                attempts++
+                delay(10000) // Check every 10 seconds
             }
 
             if (attempts >= maxAttempts) {
-                statusText.text = "Payment check timeout. Please contact support if you sent payment."
+                statusText.text = "Payment timeout. Please try again."
             }
         }
     }
 
-    private fun showLicenseInputDialog() {
+    private fun saveLicenseAndFinish(licenseKey: String) {
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val deviceId = paymentManager.getDeviceId()
+                val response = withContext(Dispatchers.IO) {
+                    paymentManager.verifyLicense(licenseKey, deviceId)
+                }
+
+                if (response.isValid && response.expiryDate != null && response.planId != null) {
+                    licenseManager.saveLicense(
+                        licenseKey,
+                        deviceId,
+                        response.expiryDate,
+                        response.planId,
+                        authManager.getUserEmail()
+                    )
+
+                // Show success message and stay on payment screen
+                runOnUiThread {
+                    Toast.makeText(this@PaymentActivity, "License activated successfully!", Toast.LENGTH_LONG).show()
+                }
+                // Auto-close after 2 seconds
+                Handler(Looper.getMainLooper()).postDelayed({
+                    setResult(RESULT_OK)
+                    finish()
+                }, 2000)
+                } else {
+                    showError("License verification failed")
+                }
+            } catch (e: Exception) {
+                Log.e("PaymentActivity", "License save error", e)
+                showError("Error saving license: ${e.message}")
+            }
+        }
+    }
+
+    private fun showEnterLicenseDialog() {
         val input = EditText(this)
-        input.hint = "Enter license key"
+        input.hint = "XXXX-XXXX-XXXX-XXXX"
 
         AlertDialog.Builder(this)
             .setTitle("Enter License Key")
             .setView(input)
-            .setPositiveButton("Activate") { _, _ ->
-                val licenseKey = input.text.toString().trim()
+            .setPositiveButton("Verify") { _, _ ->
+                val licenseKey = input.text.toString().trim().uppercase()
                 if (licenseKey.isNotEmpty()) {
-                    activateLicense(licenseKey)
+                    verifyManualLicense(licenseKey)
                 }
             }
             .setNegativeButton("Cancel", null)
             .show()
     }
 
-private fun activateLicense(licenseKey: String) {
-    progressBar.visibility = View.VISIBLE
-    monthlyButton.isEnabled = false
-    yearlyButton.isEnabled = false
-    activateLicenseButton.isEnabled = false
+    private fun verifyManualLicense(licenseKey: String) {
+        progressBar.visibility = View.VISIBLE
 
-    CoroutineScope(Dispatchers.Main).launch {
-        try {
-            val deviceId = android.provider.Settings.Secure.getString(
-                contentResolver,
-                android.provider.Settings.Secure.ANDROID_ID
-            )
+        CoroutineScope(Dispatchers.Main).launch {
+            try {
+                val deviceId = paymentManager.getDeviceId()
+                val response = withContext(Dispatchers.IO) {
+                    paymentManager.verifyLicense(licenseKey, deviceId)
+                }
 
-            // Get user info
-            val user = authManager.getCurrentUser()
-            val userEmail = authManager.getUserEmail()
+                progressBar.visibility = View.GONE
 
-            val response = withContext(Dispatchers.IO) {
-                paymentManager.verifyAndLinkLicense(licenseKey, deviceId, user?.id, userEmail)
+                if (response.isValid && response.expiryDate != null && response.planId != null) {
+                    licenseManager.saveLicense(
+                        licenseKey,
+                        deviceId,
+                        response.expiryDate,
+                        response.planId,
+                        authManager.getUserEmail()
+                    )
+
+                // Show success message and stay on payment screen
+                runOnUiThread {
+                    Toast.makeText(this@PaymentActivity, "License activated successfully!", Toast.LENGTH_LONG).show()
+                }
+                // Auto-close after 2 seconds
+                Handler(Looper.getMainLooper()).postDelayed({
+                    setResult(RESULT_OK)
+                    finish()
+                }, 2000)
+                } else {
+                    showError(response.message ?: "Invalid license key")
+                }
+            } catch (e: Exception) {
+                progressBar.visibility = View.GONE
+                showError("Verification error: ${e.message}")
             }
-
-// ADD THIS LOGGING
-Log.d("PaymentActivity", "Response received:")
-Log.d("PaymentActivity", "  success: ${response.success}")
-Log.d("PaymentActivity", "  isValid: ${response.isValid}")
-Log.d("PaymentActivity", "  message: ${response.message}")
-Log.d("PaymentActivity", "  licenseKey: ${response.licenseKey}")
-
-            progressBar.visibility = View.GONE
-
-if (response.success && response.isValid) {
-    // Calculate expiry - simple 30 days for monthly
-    val expiryMillis = System.currentTimeMillis() + (30L * 24 * 60 * 60 * 1000)
-
-    // Save license
-    licenseManager.saveLicense(
-        licenseKey,
-        deviceId,
-        expiryMillis.toString(),
-        response.planId ?: "monthly",
-        userEmail
-    )
-
-    Log.d("PaymentActivity", "License activated: $licenseKey")
-
-    // Show success dialog
-    AlertDialog.Builder(this@PaymentActivity)
-        .setTitle("Success!")
-        .setMessage("Your VPN license has been activated successfully!")
-        .setCancelable(false)
-        .setPositiveButton("Continue") { _, _ ->
-            // Start MainActivity directly instead of using result
-            val intent = Intent(this@PaymentActivity, io.nekohasekai.sagernet.ui.MainActivity::class.java)
-            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            startActivity(intent)
-            finish()
         }
-        .show()
-                
-            } else {
-                showError(response.message ?: "Invalid or expired license key")
-                monthlyButton.isEnabled = true
-                yearlyButton.isEnabled = true
-                activateLicenseButton.isEnabled = true
-            }
-        } catch (e: Exception) {
-            progressBar.visibility = View.GONE
-            monthlyButton.isEnabled = true
-            yearlyButton.isEnabled = true
-            activateLicenseButton.isEnabled = true
-            showError("Error: ${e.message}")
-            Log.e("PaymentActivity", "Error verifying license", e)
-        }
-    }
-}
-
-    private fun showSuccess() {
-        progressBar.visibility = View.GONE
-
-        Toast.makeText(this, "Subscription activated successfully!", Toast.LENGTH_LONG).show()
-
-        // Return to MainActivity
-        setResult(RESULT_OK)
-        finish()
     }
 
     private fun showError(message: String) {
-        AlertDialog.Builder(this)
-            .setTitle("Error")
-            .setMessage(message)
-            .setPositiveButton("OK", null)
-            .show()
+        errorText.text = message
+        errorText.visibility = View.VISIBLE
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        paymentCheckJob?.cancel()
+        pollingJob?.cancel()
     }
 }

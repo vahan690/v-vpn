@@ -143,7 +143,8 @@ dependencies {
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     
     // QR Code
-    implementation("com.google.zxing:core:3.5.3")
+    implementation("com.google.zxing:core:3.5.2")
+    implementation("com.journeyapps:zxing-android-embedded:4.3.0")
     
     // Utilities
     implementation("com.jakewharton:process-phoenix:3.0.0")

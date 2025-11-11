@@ -15,7 +15,8 @@ class PaymentManager(private val context: Context) {
 
     companion object {
         private const val TAG = "PaymentManager"
-        private const val BASE_URL = "https://tron.vvpn.space"
+        private const val BSC_BASE_URL = "https://bsc.vvpn.space"
+        private const val LICENSE_API_URL = "https://api.vvpn.space"
     }
 
     data class PaymentOrder(
@@ -23,15 +24,16 @@ class PaymentManager(private val context: Context) {
         val paymentAddress: String,
         val amount: String,
         val currency: String,
-        val planId: String
+        val planId: String,
+        val usdtContract: String,
+        val network: String,
+        val chainId: Int
     )
 
-    data class LicenseResponse(
+    data class PaymentStatusResponse(
         val success: Boolean,
+        val status: String,
         val licenseKey: String?,
-        val deviceId: String?,
-        val planId: String?,
-        val expiryDate: String?,
         val message: String?
     )
 
@@ -44,32 +46,23 @@ class PaymentManager(private val context: Context) {
         val expiryDate: String?
     )
 
-    data class PaymentStatusResponse(
-        val success: Boolean,
-        val status: String,
-        val licenseKey: String?,
-        val message: String?
-    )
-
-    suspend fun createPayment(planId: String, deviceId: String, userId: Int? = null, userEmail: String? = null): Result<PaymentOrder> = withContext(Dispatchers.IO) {
+    // Create BSC payment
+    suspend fun createBscPayment(planId: String, deviceId: String, token: String): Result<PaymentOrder> = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$BASE_URL/api/payment/create")
+            val url = URL("$BSC_BASE_URL/api/create-order")
             val connection = url.openConnection() as HttpURLConnection
 
             connection.requestMethod = "POST"
             connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("Authorization", "Bearer $token")
             connection.doOutput = true
-            connection.connectTimeout = 30000
-            connection.readTimeout = 30000
+            connection.connectTimeout = 60000
+            connection.readTimeout = 60000
 
-	    val jsonBody = JSONObject().apply {
-	        put("device_id", deviceId)
-	        put("plan_id", planId)
-	        put("plan_name", if (planId == "monthly") "Monthly Plan" else "Yearly Plan")
-	        put("amount_usd", if (planId == "monthly") 5.0 else 50.0)
-	        if (userId != null) put("user_id", userId)
-	        if (userEmail != null) put("user_email", userEmail)
-	    }
+            val jsonBody = JSONObject().apply {
+                put("deviceId", deviceId)
+                put("planId", planId)
+            }
 
             OutputStreamWriter(connection.outputStream).use { writer ->
                 writer.write(jsonBody.toString())
@@ -81,49 +74,61 @@ class PaymentManager(private val context: Context) {
                 if (responseCode == 200) connection.inputStream else connection.errorStream
             )).use { it.readText() }
 
-            Log.d(TAG, "Create payment response ($responseCode): $responseBody")
+            Log.d(TAG, "Create BSC payment response ($responseCode): $responseBody")
 
             if (responseCode == 200) {
                 val json = JSONObject(responseBody)
+                val order = json.getJSONObject("order")
+                
                 Result.success(PaymentOrder(
-                    orderId = json.getString("order_id"),
-                    paymentAddress = json.getString("payment_address"),
-                    amount = json.getDouble("amount_usd").toString(),
-                    currency = json.optString("currency", "USDT"),
-                    planId = planId
+                    orderId = order.getString("orderId"),
+                    paymentAddress = order.getString("paymentAddress"),
+                    amount = order.getString("amount"),
+                    currency = "USDT",
+                    planId = order.getString("planId"),
+                    usdtContract = order.getString("usdtContract"),
+                    network = order.getString("network"),
+                    chainId = order.getInt("chainId")
                 ))
             } else {
                 val json = JSONObject(responseBody)
                 Result.failure(Exception(json.optString("error", "Unknown error")))
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error creating payment: ${e.message}", e)
+            Log.e(TAG, "Error creating BSC payment: ${e.message}", e)
             Result.failure(e)
         }
     }
 
+    // Check BSC payment status
     suspend fun checkPaymentStatus(orderId: String): PaymentStatusResponse = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$BASE_URL/api/order/$orderId/status")
+            val url = URL("$BSC_BASE_URL/api/check-payment/$orderId")
             val connection = url.openConnection() as HttpURLConnection
 
             connection.requestMethod = "GET"
-            connection.connectTimeout = 15000
-            connection.readTimeout = 15000
+            connection.connectTimeout = 60000
+            connection.readTimeout = 60000
 
             val responseCode = connection.responseCode
             val responseBody = BufferedReader(InputStreamReader(
                 if (responseCode == 200) connection.inputStream else connection.errorStream
             )).use { it.readText() }
 
-            Log.d(TAG, "Check payment status response ($responseCode): $responseBody")
+            Log.d(TAG, "Check BSC payment status response ($responseCode): $responseBody")
 
             if (responseCode == 200) {
                 val json = JSONObject(responseBody)
+                val order = json.getJSONObject("order")
+                
+                val licenseKey = if (json.has("license") && !json.isNull("license")) {
+                    json.getJSONObject("license").getString("key")
+                } else null
+
                 PaymentStatusResponse(
                     success = true,
-                    status = json.getString("status"),
-                    licenseKey = json.optString("license_key", null),
+                    status = order.getString("status"),
+                    licenseKey = licenseKey,
                     message = null
                 )
             } else {
@@ -136,7 +141,7 @@ class PaymentManager(private val context: Context) {
                 )
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error checking payment status: ${e.message}", e)
+            Log.e(TAG, "Error checking BSC payment status: ${e.message}", e)
             PaymentStatusResponse(
                 success = false,
                 status = "error",
@@ -146,14 +151,15 @@ class PaymentManager(private val context: Context) {
         }
     }
 
+    // Verify license
     suspend fun verifyLicense(licenseKey: String, deviceId: String): VerifyLicenseResponse = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$BASE_URL/api/license/verify/$deviceId/$licenseKey")
+            val url = URL("$LICENSE_API_URL/api/license/verify/$deviceId/$licenseKey")
             val connection = url.openConnection() as HttpURLConnection
 
             connection.requestMethod = "GET"
-            connection.connectTimeout = 15000
-            connection.readTimeout = 15000
+            connection.connectTimeout = 60000
+            connection.readTimeout = 60000
 
             val responseCode = connection.responseCode
             val responseBody = BufferedReader(InputStreamReader(
@@ -166,11 +172,11 @@ class PaymentManager(private val context: Context) {
                 val json = JSONObject(responseBody)
                 VerifyLicenseResponse(
                     success = json.getBoolean("success"),
-                    isValid = json.optBoolean("isValid", json.optBoolean("is_valid", false)),
+                    isValid = json.getBoolean("isValid"),
                     message = json.optString("message", null),
-                    licenseKey = json.optString("license_key", null),
-                    planId = json.optString("plan_id", null),
-                    expiryDate = json.optString("expiry_date", null)
+                    licenseKey = if (json.has("license")) json.getJSONObject("license").optString("licenseKey") else null,
+                    planId = if (json.has("license")) json.getJSONObject("license").optString("planId") else null,
+                    expiryDate = if (json.has("license")) json.getJSONObject("license").optString("expiryDate") else null
                 )
             } else {
                 val json = JSONObject(responseBody)
@@ -196,74 +202,74 @@ class PaymentManager(private val context: Context) {
         }
     }
 
+    // Verify and link license
+    suspend fun verifyAndLinkLicense(licenseKey: String, deviceId: String, userId: Int?, userEmail: String, token: String): VerifyLicenseResponse = withContext(Dispatchers.IO) {
+        try {
+            val url = URL("$LICENSE_API_URL/api/license/verify-and-link")
+            val connection = url.openConnection() as HttpURLConnection
+
+            connection.requestMethod = "POST"
+            connection.setRequestProperty("Content-Type", "application/json")
+            connection.setRequestProperty("Authorization", "Bearer $token")
+            connection.doOutput = true
+            connection.connectTimeout = 60000
+            connection.readTimeout = 60000
+
+            val jsonBody = JSONObject().apply {
+                put("licenseKey", licenseKey)
+                put("deviceId", deviceId)
+            }
+
+            OutputStreamWriter(connection.outputStream).use { writer ->
+                writer.write(jsonBody.toString())
+                writer.flush()
+            }
+
+            val responseCode = connection.responseCode
+            val responseBody = BufferedReader(InputStreamReader(
+                if (responseCode == 200) connection.inputStream else connection.errorStream
+            )).use { it.readText() }
+
+            Log.d(TAG, "Verify and link license response ($responseCode): $responseBody")
+
+            if (responseCode == 200) {
+                val json = JSONObject(responseBody)
+                VerifyLicenseResponse(
+                    success = json.getBoolean("success"),
+                    isValid = json.getBoolean("isValid"),
+                    message = json.optString("message", null),
+                    licenseKey = if (json.has("license")) json.getJSONObject("license").optString("licenseKey") else null,
+                    planId = if (json.has("license")) json.getJSONObject("license").optString("planId") else null,
+                    expiryDate = if (json.has("license")) json.getJSONObject("license").optString("expiryDate") else null
+                )
+            } else {
+                val json = JSONObject(responseBody)
+                VerifyLicenseResponse(
+                    success = false,
+                    isValid = false,
+                    message = json.optString("error", "Verification failed"),
+                    licenseKey = null,
+                    planId = null,
+                    expiryDate = null
+                )
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error verifying and linking license: ${e.message}", e)
+            VerifyLicenseResponse(
+                success = false,
+                isValid = false,
+                message = e.message,
+                licenseKey = null,
+                planId = null,
+                expiryDate = null
+            )
+        }
+    }
+
     fun getDeviceId(): String {
         return android.provider.Settings.Secure.getString(
             context.contentResolver,
             android.provider.Settings.Secure.ANDROID_ID
         )
     }
-// Verify and link license to user account
-suspend fun verifyAndLinkLicense(licenseKey: String, deviceId: String, userId: Int?, userEmail: String): VerifyLicenseResponse = withContext(Dispatchers.IO) {
-    try {
-        val url = URL("$BASE_URL/api/license/verify-and-link")
-        val connection = url.openConnection() as HttpURLConnection
-        
-        connection.requestMethod = "POST"
-        connection.setRequestProperty("Content-Type", "application/json")
-        connection.doOutput = true
-        connection.connectTimeout = 15000
-        connection.readTimeout = 15000
-        
-        val jsonBody = JSONObject().apply {
-            put("license_key", licenseKey)
-            put("device_id", deviceId)
-            if (userId != null) put("user_id", userId)
-	    put("user_email", userEmail)
-        }
-        
-        OutputStreamWriter(connection.outputStream).use { writer ->
-            writer.write(jsonBody.toString())
-            writer.flush()
-        }
-        
-        val responseCode = connection.responseCode
-        val responseBody = BufferedReader(InputStreamReader(
-            if (responseCode == 200) connection.inputStream else connection.errorStream
-        )).use { it.readText() }
-        
-        Log.d(TAG, "Verify and link license response ($responseCode): $responseBody")
-        
-        if (responseCode == 200) {
-            val json = JSONObject(responseBody)
-            VerifyLicenseResponse(
-                success = json.getBoolean("success"),
-                isValid = json.optBoolean("isValid", json.optBoolean("is_valid", false)),
-                message = json.optString("message", null),
-                licenseKey = json.optString("license_key", null),
-                planId = json.optString("plan_id", null),
-                expiryDate = json.optString("expiry_date", null)
-            )
-        } else {
-            val json = JSONObject(responseBody)
-            VerifyLicenseResponse(
-                success = false,
-                isValid = false,
-                message = json.optString("error", "Verification failed"),
-                licenseKey = null,
-                planId = null,
-                expiryDate = null
-            )
-        }
-    } catch (e: Exception) {
-        Log.e(TAG, "Error verifying and linking license: ${e.message}", e)
-        VerifyLicenseResponse(
-            success = false,
-            isValid = false,
-            message = e.message,
-            licenseKey = null,
-            planId = null,
-            expiryDate = null
-        )
-    }
-}
 }

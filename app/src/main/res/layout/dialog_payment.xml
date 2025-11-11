@@ -4,77 +4,66 @@
     android:layout_height="wrap_content"
     android:orientation="vertical"
     android:padding="24dp">
-
-    <!-- QR Code -->
+    <TextView
+        android:id="@+id/networkInfo"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Network: BSC"
+        android:gravity="center"
+        android:padding="8dp"
+        android:background="#F5F5F5"
+        android:layout_marginBottom="16dp" />
     <ImageView
         android:id="@+id/qrCodeImage"
-        android:layout_width="250dp"
-        android:layout_height="250dp"
+        android:layout_width="3dp"
+        android:layout_height="3dp"
         android:layout_gravity="center"
-        android:layout_marginBottom="16dp"
-        android:contentDescription="Payment QR Code" />
-
-    <!-- Amount -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Amount:"
-        android:textSize="14sp"
-        android:textStyle="bold"
-        android:layout_marginBottom="4dp" />
-
+        android:contentDescription="Payment QR Code"
+        android:layout_marginBottom="16dp" />
     <TextView
         android:id="@+id/paymentAmount"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="5 USDT"
-        android:textSize="18sp"
-        android:textColor="@android:color/holo_green_dark"
-        android:layout_marginBottom="16dp" />
-
-    <!-- Payment Address -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="Payment Address:"
-        android:textSize="14sp"
+        android:text="5. USDT"
+        android:textSize="24sp"
         android:textStyle="bold"
-        android:layout_marginBottom="4dp" />
-
+        android:gravity="center"
+        android:layout_marginBottom="8dp" />
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Send to address:"
+        android:gravity="center"
+        android:layout_marginBottom="8dp" />
     <TextView
         android:id="@+id/paymentAddress"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="TXxxx..."
-        android:textSize="12sp"
-        android:fontFamily="monospace"
-        android:layout_marginBottom="8dp" />
-
-    <!-- Copy Button -->
+        android:text="Payment Address"
+        android:background="#F5F5F5"
+        android:padding="12dp"
+        android:gravity="center"
+        android:textIsSelectable="true"
+        android:layout_marginBottom="12dp" />
     <Button
         android:id="@+id/copyAddressButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Copy Address"
+        android:padding="12dp"
         android:layout_marginBottom="16dp" />
-
-    <!-- Status Text -->
     <TextView
         android:id="@+id/paymentStatus"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Waiting for payment..."
-        android:textSize="14sp"
-        android:textAlignment="center"
-        android:textColor="@android:color/holo_orange_dark"
+        android:gravity="center"
+        android:padding="12dp"
         android:layout_marginBottom="16dp" />
-
-    <!-- Cancel Button -->
     <Button
         android:id="@+id/cancelButton"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:text="Cancel"
-        style="?android:attr/buttonBarButtonStyle" />
-
+        android:padding="12dp" />
 </LinearLayout>

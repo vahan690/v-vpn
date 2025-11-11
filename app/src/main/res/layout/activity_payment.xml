@@ -8,84 +8,115 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="24dp"
-        android:gravity="center">
+        android:padding="24dp">
 
         <TextView
-            android:id="@+id/titleText"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Subscribe to V-VPN"
-            android:textSize="24sp"
+            android:text="Select Network:"
+            android:textSize="18sp"
             android:textStyle="bold"
-            android:layout_marginBottom="32dp"/>
+            android:textColor="@android:color/black"
+            android:paddingBottom="16dp" />
 
-        <TextView
-            android:layout_width="wrap_content"
+        <!-- Network Selection (BSC Only) -->
+        <RadioGroup
+            android:id="@+id/networkSelector"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="Choose your plan:"
-            android:textSize="16sp"
-            android:layout_marginBottom="16dp"/>
+            android:paddingBottom="16dp">
 
+            <RadioButton
+                android:id="@+id/bscRadio"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="BSC (BEP20)"
+                android:textSize="16sp"
+                android:checked="true"
+                android:enabled="true" />
+
+        </RadioGroup>
+
+        <!-- CRITICAL WARNING -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:background="#FFF3E0"
+            android:padding="16dp"
+            android:layout_marginBottom="16dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="⚠️ IMPORTANT - READ CAREFULLY"
+                android:textSize="16sp"
+                android:textStyle="bold"
+                android:textColor="#E65100"
+                android:paddingBottom="8dp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="• Send ONLY USDT (BEP20 token)\n• Use BSC Network ONLY\n• Wrong network = Lost funds forever!\n• Double-check the address\n• Transaction is irreversible"
+                android:textSize="14sp"
+                android:textColor="#BF360C"
+                android:lineSpacingExtra="4dp" />
+
+        </LinearLayout>
+
+        <!-- Plan Selection -->
         <Button
             android:id="@+id/monthlyButton"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="64dp"
             android:text="Monthly - $5 USDT"
             android:textSize="18sp"
-            android:padding="16dp"
-            android:layout_marginBottom="16dp"/>
+            android:textColor="@android:color/white"
+            android:backgroundTint="#6200EA"
+            android:layout_marginBottom="16dp" />
 
         <Button
             android:id="@+id/yearlyButton"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="64dp"
             android:text="Yearly - $50 USDT"
             android:textSize="18sp"
-            android:padding="16dp"
-            android:layout_marginBottom="32dp"/>
+            android:textColor="@android:color/white"
+            android:backgroundTint="#6200EA"
+            android:layout_marginBottom="24dp" />
 
-        <View
-            android:layout_width="match_parent"
-            android:layout_height="1dp"
-            android:background="#CCCCCC"
-            android:layout_marginTop="16dp"
-            android:layout_marginBottom="16dp"/>
-
-        <TextView
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text="Already have a license?"
-            android:textSize="14sp"
-            android:textColor="#666666"
-            android:layout_marginBottom="16dp"/>
-
+        <!-- Enter License Key -->
         <Button
-            android:id="@+id/activateLicenseButton"
+            android:id="@+id/enterLicenseButton"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="I Have a License Key"
-            android:textSize="16sp"
-            android:padding="16dp"
-            style="?android:attr/borderlessButtonStyle"
-            android:textColor="?attr/colorPrimary"/>
+            android:layout_height="64dp"
+            android:text="Enter License Key"
+            android:textSize="18sp"
+            android:textColor="#6200EA"
+            android:backgroundTint="@android:color/white"
+            android:background="?attr/selectableItemBackground"
+            android:layout_marginBottom="16dp" />
 
-        <TextView
-            android:id="@+id/statusText"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:text=""
-            android:textSize="14sp"
-            android:textColor="#666666"
-            android:gravity="center"
-            android:layout_marginTop="16dp"/>
-
+        <!-- Progress Bar -->
         <ProgressBar
             android:id="@+id/progressBar"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+
+        <!-- Error Text -->
+        <TextView
+            android:id="@+id/errorText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#B00020"
+            android:textSize="14sp"
+            android:gravity="center"
             android:visibility="gone"
-            android:layout_marginTop="16dp"/>
+            android:padding="8dp" />
 
     </LinearLayout>
+
 </ScrollView>
