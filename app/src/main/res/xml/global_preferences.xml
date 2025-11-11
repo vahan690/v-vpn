@@ -4,13 +4,13 @@
     <PreferenceCategory
         app:key="generalSettings"
         app:title="@string/general_settings">
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:defaultValue="false"
             app:icon="@drawable/ic_communication_phonelink_ring"
             app:key="isAutoConnect"
             app:summary="@string/auto_connect_summary"
             app:title="@string/auto_connect" />
-        <io.nekohasekai.sagernet.widget.ColorPickerPreference
+        <io.vvpn.android.widget.ColorPickerPreference
             android:title="@string/theme"
             app:icon="@drawable/ic_baseline_color_lens_24"
             app:key="appTheme" />
@@ -37,7 +37,7 @@
             app:key="serviceMode"
             app:title="@string/service_mode"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:defaultValue="false"
             app:icon="@drawable/ic_baseline_local_bar_24"
             app:key="memoryLimit"
@@ -62,7 +62,7 @@
             app:key="mtu"
             app:title="@string/mtu"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:icon="@drawable/ic_baseline_transform_24"
             app:key="allowAppsBypassVpn"
             app:title="@string/allow_apps_bypass_vpn" />
@@ -74,36 +74,36 @@
             app:key="speedInterval"
             app:title="@string/speed_interval"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:defaultValue="true"
             app:key="profileTrafficStatistics"
             app:summary="@string/profile_traffic_statistics_summary"
             app:title="@string/profile_traffic_statistics" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:defaultValue="true"
             app:icon="@drawable/ic_baseline_speed_24"
             app:key="showDirectSpeed"
             app:summary="@string/show_direct_speed_sum"
             app:title="@string/show_direct_speed"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:key="showGroupInNotification"
             app:title="@string/show_group_in_notification" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:icon="@drawable/ic_baseline_center_focus_weak_24"
             app:key="alwaysShowAddress"
             app:summary="@string/always_show_address_sum"
             app:title="@string/always_show_address" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:icon="@drawable/ic_baseline_transgender_24"
             app:key="blurredAddress"
             app:title="@string/blurred_address" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:defaultValue="true"
             app:icon="@drawable/ic_baseline_security_24"
             app:key="securityAdvisory"
             app:title="@string/insecure_warn" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:icon="@drawable/ic_device_data_usage"
             app:key="meteredNetwork"
             app:summary="@string/metered_summary"
@@ -128,21 +128,21 @@
         app:initialExpandedChildrenCount="0"
         app:key="routeSettings"
         app:title="@string/route_options">
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:icon="@drawable/ic_navigation_apps"
             app:key="proxyApps"
             app:summary="@string/proxied_apps_summary"
             app:title="@string/proxied_apps" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:icon="@drawable/baseline_keyboard_tab_24"
             app:key="updateProxyAppsWhenInstall"
             app:title="@string/update_proxy_apps_when_install" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:defaultValue="true"
             app:icon="@drawable/ic_baseline_legend_toggle_24"
             app:key="bypassLan"
             app:title="@string/route_opt_bypass_lan" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:key="bypassLanInCore"
             app:title="@string/bypass_lan_in_core" />
         <rikka.preference.SimpleMenuPreference
@@ -168,7 +168,7 @@
             app:icon="@drawable/baseline_public_24"
             app:key="networkPreferredInterfaces"
             app:title="@string/network_interface_preference" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:defaultValue="false"
             app:icon="@drawable/ic_baseline_android_24"
             app:key="forcedSearchProcess"
@@ -181,7 +181,7 @@
             app:key="rulesProvider"
             app:title="@string/route_rules_provider"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.LinkOrContentPreference
+        <io.vvpn.android.widget.LinkOrContentPreference
             app:defaultValue="https://codeload.github.com/SagerNet/sing-geosite/tar.gz/refs/heads/rule-set"
             app:icon="@drawable/ic_baseline_import_contacts_24"
             app:isPreferenceVisible="false"
@@ -249,7 +249,7 @@
             app:key="domain_strategy_for_server"
             app:title="@string/domain_strategy_for_server"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:defaultValue="false"
             app:icon="@drawable/ic_baseline_lock_24"
             app:key="enableFakeDns"
@@ -278,7 +278,7 @@
             app:key="portLocalDns"
             app:title="@string/port_local_dns"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:defaultValue="false"
             app:key="appendHttpProxy"
             app:summary="@string/append_http_proxy_sum"
@@ -287,7 +287,7 @@
             app:icon="@drawable/ic_baseline_domain_24"
             app:key="httpProxyBypass"
             app:title="@string/http_proxy_bypass" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:icon="@drawable/ic_baseline_nat_24"
             app:key="allowAccess"
             app:summary="@string/allow_access_sum"
@@ -314,7 +314,7 @@
         app:initialExpandedChildrenCount="0"
         app:key="miscSettings"
         app:title="@string/cag_misc">
-        <io.nekohasekai.sagernet.widget.LinkOrContentPreference
+        <io.vvpn.android.widget.LinkOrContentPreference
             app:defaultValue="http://cp.cloudflare.com/"
             app:icon="@drawable/ic_baseline_cast_connected_24"
             app:key="connectionTestURL"
@@ -332,7 +332,7 @@
             app:key="connectionTestTimeout"
             app:title="@string/test_timeout"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:defaultValue="true"
             app:icon="@drawable/baseline_developer_board_24"
             app:key="acquireWakeLock"
@@ -346,18 +346,18 @@
             app:key="certProvider"
             app:title="@string/certificate_authority"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.DurationPreference
+        <io.vvpn.android.widget.DurationPreference
             app:defaultValue="15s"
             app:icon="@drawable/ic_baseline_flip_camera_android_24"
             app:key="tcpKeepAliveInterval"
             app:title="@string/tcp_keep_alive_interval"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:defaultValue="false"
             app:icon="@drawable/ic_communication_phonelink_ring"
             app:key="ignoreDeviceIdle"
             app:title="@string/ignore_device_idle" />
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:defaultValue="false"
             app:icon="@drawable/ic_baseline_format_align_left_24"
             app:key="disableProcessText"
@@ -369,7 +369,7 @@
         app:initialExpandedChildrenCount="0"
         app:key="ntpSettings"
         app:title="@string/ntp_category">
-        <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+        <io.vvpn.android.widget.MaterialSwitchPreference
             app:key="ntpEnable"
             app:summary="@string/ntp_sum"
             app:title="@string/enable_ntp" />
@@ -385,7 +385,7 @@
             app:key="ntpPort"
             app:title="@string/ntp_server_port"
             app:useSimpleSummaryProvider="true" />
-        <io.nekohasekai.sagernet.widget.DurationPreference
+        <io.vvpn.android.widget.DurationPreference
             app:defaultValue="30m"
             app:icon="@drawable/ic_baseline_flip_camera_android_24"
             app:key="ntpInterval"

@@ -1,0 +1,88 @@
+/******************************************************************************
+ *                                                                            *
+ * Copyright (C) 2021 by nekohasekai <contact-sagernet@sekai.icu>             *
+ *                                                                            *
+ * This program is free software: you can redistribute it and/or modify       *
+ * it under the terms of the GNU General Public License as published by       *
+ * the Free Software Foundation, either version 3 of the License, or          *
+ *  (at your option) any later version.                                       *
+ *                                                                            *
+ * This program is distributed in the hope that it will be useful,            *
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of             *
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the              *
+ * GNU General Public License for more details.                               *
+ *                                                                            *
+ * You should have received a copy of the GNU General Public License          *
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.       *
+ *                                                                            *
+ ******************************************************************************/
+
+package io.vvpn.android.group
+
+import io.vvpn.android.R
+import io.vvpn.android.SagerNet.Companion.app
+import io.vvpn.android.database.DataStore
+import io.vvpn.android.database.GroupManager
+import io.vvpn.android.database.ProxyGroup
+import io.vvpn.android.database.SubscriptionBean
+import io.vvpn.android.fmt.AbstractBean
+import io.vvpn.android.fmt.shadowsocks.parseShadowsocks
+import io.vvpn.android.ktx.Logs
+import io.vvpn.android.ktx.applyDefaultValues
+import io.vvpn.android.ktx.filterIsInstance
+import io.vvpn.android.ktx.generateUserAgent
+import io.vvpn.android.ktx.getLongOrNull
+import libcore.Libcore
+import org.json.JSONObject
+import androidx.core.net.toUri
+
+/** https://shadowsocks.org/doc/sip008.html */
+object SIP008Updater : GroupUpdater() {
+
+    override suspend fun doUpdate(
+        proxyGroup: ProxyGroup,
+        subscription: SubscriptionBean,
+        userInterface: GroupManager.Interface?,
+        byUser: Boolean,
+    ) {
+        if (subscription.link.startsWith("http://")) Logs.w("Use SIP008 with HTTP!")
+
+        val sip008Response: JSONObject
+        if (subscription.link.startsWith("content://")) {
+            val contentText = app.contentResolver.openInputStream(subscription.link.toUri())
+                ?.bufferedReader()
+                ?.readText()
+
+            sip008Response = contentText?.let { JSONObject(contentText) }
+                ?: error(app.getStringCompat(R.string.no_proxies_found_in_subscription))
+        } else {
+
+            val response = Libcore.newHttpClient().apply {
+                if (DataStore.serviceState.started) {
+                    useSocks5(DataStore.mixedPort, DataStore.inboundUsername, DataStore.inboundPassword)
+                }
+                // Strict !!!
+                restrictedTLS()
+            }.newRequest().apply {
+                setURL(subscription.link)
+                setUserAgent(generateUserAgent(subscription.customUserAgent))
+            }.execute()
+
+            sip008Response = JSONObject(response.contentString.value)
+        }
+
+        subscription.bytesUsed = sip008Response.getLongOrNull("bytes_used") ?: -1
+        subscription.bytesRemaining = sip008Response.getLongOrNull("bytes_remaining") ?: -1
+        subscription.applyDefaultValues()
+
+        val servers = sip008Response.getJSONArray("servers").filterIsInstance<JSONObject>()
+
+        val proxies = mutableListOf<AbstractBean>()
+        for (profile in servers) {
+            val bean = profile.parseShadowsocks()
+            proxies.add(bean.applyDefaultValues())
+        }
+
+        tidyProxies(proxies, subscription, proxyGroup, userInterface, byUser)
+    }
+}

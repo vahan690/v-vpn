@@ -135,7 +135,7 @@
         app:fastScrollHorizontalTrackDrawable="@drawable/fastscroll_track"
         app:fastScrollVerticalThumbDrawable="@drawable/fastscroll_thumb"
         app:fastScrollVerticalTrackDrawable="@drawable/fastscroll_track"
-        app:layoutManager="io.nekohasekai.sagernet.widget.FixedLinearLayout"
+        app:layoutManager="io.vvpn.android.widget.FixedLinearLayout"
         app:layout_behavior="@string/appbar_scrolling_view_behavior"
         tools:listitem="@layout/layout_apps_item" />
 

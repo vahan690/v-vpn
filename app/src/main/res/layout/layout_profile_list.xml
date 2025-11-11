@@ -17,5 +17,5 @@
     app:fastScrollHorizontalTrackDrawable="@drawable/fastscroll_track"
     app:fastScrollVerticalThumbDrawable="@drawable/fastscroll_thumb"
     app:fastScrollVerticalTrackDrawable="@drawable/fastscroll_track"
-    app:layoutManager="io.nekohasekai.sagernet.widget.FixedLinearLayout"
+    app:layoutManager="io.vvpn.android.widget.FixedLinearLayout"
     tools:listitem="@layout/layout_profile" />

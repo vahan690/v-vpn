@@ -65,7 +65,7 @@
                 android:src="@drawable/baseline_keyboard_tab_24"
                 app:tint="?attr/colorOnSurface" />
 
-            <io.nekohasekai.sagernet.widget.ExtendedKeyboard
+            <io.vvpn.android.widget.ExtendedKeyboard
                 android:id="@+id/extended_keyboard"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
@@ -74,7 +74,7 @@
                 android:clipToPadding="false"
                 android:orientation="horizontal"
                 android:paddingHorizontal="0dp"
-                app:layoutManager="io.nekohasekai.sagernet.widget.NoScrollLinearLayout"
+                app:layoutManager="io.vvpn.android.widget.NoScrollLinearLayout"
                 tools:itemCount="6"
                 tools:listitem="@layout/item_keyboard_key" />
 

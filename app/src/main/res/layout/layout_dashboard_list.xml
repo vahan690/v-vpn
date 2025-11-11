@@ -28,6 +28,6 @@
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
         android:paddingBottom="64dp"
-        app:layoutManager="io.nekohasekai.sagernet.widget.FixedLinearLayout" />
+        app:layoutManager="io.vvpn.android.widget.FixedLinearLayout" />
 
 </LinearLayout>

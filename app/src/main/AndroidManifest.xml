@@ -53,12 +53,12 @@
 
     <queries>
         <intent>
-            <action android:name="io.nekohasekai.sagernet.plugin.ACTION_NATIVE_PLUGIN" />
+            <action android:name="io.vvpn.android.plugin.ACTION_NATIVE_PLUGIN" />
         </intent>
     </queries>
 
     <application
-        android:name="io.nekohasekai.sagernet.SagerNet"
+        android:name="io.vvpn.android.SagerNet"
         android:allowBackup="true"
         android:autoRevokePermissions="allowed"
         android:banner="@mipmap/ic_launcher"
@@ -177,29 +177,29 @@
         </activity-alias>
 
         <activity
-            android:name="io.nekohasekai.sagernet.ui.VpnRequestActivity"
+            android:name="io.vvpn.android.ui.VpnRequestActivity"
             android:excludeFromRecents="true"
             android:taskAffinity="" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.ConfigEditActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.SocksSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.HttpSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.ShadowsocksSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.VMessSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.TrojanSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.MieruSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.NaiveSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.HysteriaSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.SSHSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.WireGuardSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.TuicSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.JuicitySettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.DirectSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.AnyTLSSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.ChainSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.ShadowTLSSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.ShadowQUICSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.ProxySetSettingsActivity" />
-        <activity android:name="io.nekohasekai.sagernet.ui.profile.ConfigSettingActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.ConfigEditActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.SocksSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.HttpSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.ShadowsocksSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.VMessSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.TrojanSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.MieruSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.NaiveSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.HysteriaSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.SSHSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.WireGuardSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.TuicSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.JuicitySettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.DirectSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.AnyTLSSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.ChainSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.ShadowTLSSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.ShadowQUICSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.ProxySetSettingsActivity" />
+        <activity android:name="io.vvpn.android.ui.profile.ConfigSettingActivity" />
         <activity android:name=".ui.GroupSettingsActivity" />
         <activity android:name=".ui.RouteSettingsActivity" />
         <activity android:name=".ui.AssetsActivity" />
@@ -326,7 +326,7 @@
             android:authorities="${applicationId}.androidx-startup"
             tools:node="merge">
             <meta-data
-                android:name="io.nekohasekai.sagernet.SagerNet"
+                android:name="io.vvpn.android.SagerNet"
                 android:value="androidx.startup" />
             <meta-data
                 android:name="androidx.work.WorkManagerInitializer"
@@ -347,7 +347,7 @@
         </receiver>
 
         <receiver
-            android:name="io.nekohasekai.sagernet.tasker.TaskerReceiver"
+            android:name="io.vvpn.android.tasker.TaskerReceiver"
             android:directBootAware="true"
             android:exported="true"
             android:process=":bg"
@@ -358,7 +358,7 @@
         </receiver>
 
         <activity
-            android:name="io.nekohasekai.sagernet.tasker.TaskerActivity"
+            android:name="io.vvpn.android.tasker.TaskerActivity"
             android:exported="true">
             <intent-filter>
                 <action android:name="com.twofortyfouram.locale.intent.action.EDIT_SETTING" />

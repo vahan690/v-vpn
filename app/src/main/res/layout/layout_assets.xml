@@ -30,7 +30,7 @@
             android:clipToPadding="false"
             android:padding="4dp"
             android:paddingBottom="64dp"
-            app:layoutManager="io.nekohasekai.sagernet.widget.FixedLinearLayout" />
+            app:layoutManager="io.vvpn.android.widget.FixedLinearLayout" />
 
     </LinearLayout>
 
