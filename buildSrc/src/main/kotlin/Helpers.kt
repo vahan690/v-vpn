@@ -47,7 +47,7 @@ fun Project.requireFlavor(): String {
 fun Project.requireMetadata(): Properties {
     if (!::metadata.isInitialized) {
         metadata = Properties().apply {
-            load(rootProject.file("husi.properties").inputStream())
+            load(rootProject.file("vvpn.properties").inputStream())
         }
     }
     return metadata
@@ -242,7 +242,7 @@ fun Project.setupApp() {
         applicationVariants.all {
             outputs.all {
                 this as BaseVariantOutputImpl
-                outputFileName = outputFileName.replace(project.name, "husi-$versionName")
+                outputFileName = outputFileName.replace(project.name, "v-vpn-$versionName")
                     .replace("-release", "")
                     .replace("-foss", "")
             }

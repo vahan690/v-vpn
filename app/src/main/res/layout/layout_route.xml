@@ -27,7 +27,7 @@
             app:fastScrollHorizontalTrackDrawable="@drawable/fastscroll_track"
             app:fastScrollVerticalThumbDrawable="@drawable/fastscroll_thumb"
             app:fastScrollVerticalTrackDrawable="@drawable/fastscroll_track"
-            app:layoutManager="io.nekohasekai.sagernet.widget.FixedLinearLayout">
+            app:layoutManager="com.vvpn.android.widget.FixedLinearLayout">
 
         </androidx.recyclerview.widget.RecyclerView>
 

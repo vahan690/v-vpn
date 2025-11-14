@@ -74,7 +74,7 @@
                     android:padding="4dp"
                     android:paddingBottom="64dp"
                     android:scrollbarSize="0dp"
-                    app:layoutManager="io.nekohasekai.sagernet.widget.FixedLinearLayout" />
+                    app:layoutManager="com.vvpn.android.widget.FixedLinearLayout" />
 
             </com.google.android.material.card.MaterialCardView>
 

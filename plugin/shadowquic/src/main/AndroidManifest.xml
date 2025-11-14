@@ -23,10 +23,10 @@
             android:exported="true"
             tools:ignore="ExportedContentProvider">
             <intent-filter>
-                <action android:name="io.nekohasekai.sagernet.plugin.ACTION_NATIVE_PLUGIN" />
+                <action android:name="com.vvpn.android.plugin.ACTION_NATIVE_PLUGIN" />
             </intent-filter>
             <intent-filter>
-                <action android:name="io.nekohasekai.sagernet.plugin.ACTION_NATIVE_PLUGIN" />
+                <action android:name="com.vvpn.android.plugin.ACTION_NATIVE_PLUGIN" />
                 <data
                     android:host="fr.husi"
                     android:path="/shadowquic-plugin"
@@ -34,10 +34,10 @@
             </intent-filter>
 
             <meta-data
-                android:name="io.nekohasekai.sagernet.plugin.id"
+                android:name="com.vvpn.android.plugin.id"
                 android:value="shadowquic-plugin" />
             <meta-data
-                android:name="io.nekohasekai.sagernet.plugin.executable_path"
+                android:name="com.vvpn.android.plugin.executable_path"
                 android:value="libshadowquic.so" />
         </provider>
     </application>

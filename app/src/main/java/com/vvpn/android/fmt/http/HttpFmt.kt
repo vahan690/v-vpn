@@ -1,0 +1,86 @@
+package com.vvpn.android.fmt.http
+
+import com.vvpn.android.fmt.parseBoxOutbound
+import com.vvpn.android.fmt.parseBoxTLS
+import com.vvpn.android.fmt.v2ray.isTLS
+import com.vvpn.android.fmt.v2ray.parseHeader
+import com.vvpn.android.fmt.v2ray.setTLS
+import com.vvpn.android.ktx.JSONMap
+import com.vvpn.android.ktx.blankAsNull
+import com.vvpn.android.ktx.mapX
+import com.vvpn.android.ktx.toJSONMap
+import libcore.Libcore
+
+fun parseHttp(link: String): HttpBean = HttpBean().apply {
+    val url = Libcore.parseURL(link)
+
+    serverAddress = url.host
+    serverPort = url.ports.toIntOrNull() ?: if (url.scheme == "https") 443 else 80
+    username = url.username
+    try {
+        password = url.password
+    } catch (_: Exception) {
+    }
+    sni = url.queryParameter("sni")
+    name = url.fragment
+    setTLS(url.scheme == "https")
+    path = url.path
+}
+
+fun HttpBean.toUri(): String {
+    val url = Libcore.newURL(if (isTLS()) "https" else "http").apply {
+        host = serverAddress
+    }
+
+    if (serverPort in 1..65535) {
+        url.ports = serverPort.toString()
+    }
+
+    username?.blankAsNull()?.let { url.username = it }
+    password?.blankAsNull()?.let { url.password = it }
+    path?.blankAsNull()?.let { url.rawPath = it }
+    sni?.blankAsNull()?.let { url.addQueryParameter("sni", it) }
+    name?.blankAsNull()?.let { url.fragment = it }
+
+
+    return url.string
+}
+
+fun parseHttpOutbound(json: JSONMap): HttpBean = HttpBean().apply {
+    parseBoxOutbound(json) { key, value ->
+        when (key) {
+            "username" -> username = value.toString()
+            "password" -> password = value.toString()
+            "path" -> path = value.toString()
+            "headers" -> (value as? Map<*, *>)?.let {
+                headers = parseHeader(it).mapX { entry ->
+                    entry.key + ":" + entry.value.joinToString(",")
+                }.joinToString("\n")
+            }
+
+            "tls" -> {
+                val tlsJson = (value as? Map<*, *>)?.let {
+                    toJSONMap(it)
+                } ?: return@parseBoxOutbound
+                val tls = parseBoxTLS(tlsJson)
+                if (!tls.enabled) return@parseBoxOutbound
+
+                setTLS(true)
+                sni = tls.server_name
+                alpn = tls.alpn?.joinToString(",")
+                utlsFingerprint = tls.utls?.fingerprint
+                allowInsecure = tls.insecure
+                disableSNI = tls.disable_sni
+                certificates = tls.certificate?.joinToString("\n")
+                tls.reality?.let {
+                    realityPublicKey = it.public_key
+                    realityShortID = it.short_id
+                }
+                tls.ech?.let {
+                    ech = it.enabled
+                    echConfig = it.config?.joinToString("\n")
+                }
+            }
+        }
+    }
+}

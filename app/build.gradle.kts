@@ -13,12 +13,10 @@ plugins {
 setupApp()
 
 android {
-    namespace = "io.nekohasekai.sagernet"
-    
+    namespace = "com.vvpn.android"
+
     defaultConfig {
-        applicationId = "io.nekohasekai.sagernet"
-        versionCode = 3
-        versionName = "1.2.0"
+        // applicationId, versionCode, and versionName are set by setupApp() from vvpn.properties
         
         splits.abi {
             reset()

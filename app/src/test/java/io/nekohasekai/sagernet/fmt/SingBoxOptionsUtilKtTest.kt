@@ -3,17 +3,17 @@ package io.nekohasekai.sagernet.fmt
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import io.nekohasekai.sagernet.fmt.SingBoxOptions.MyOptions
-import io.nekohasekai.sagernet.fmt.SingBoxOptions.DNSOptions
-import io.nekohasekai.sagernet.fmt.SingBoxOptions.RouteOptions
-import io.nekohasekai.sagernet.fmt.SingBoxOptions.DNSRule_Logical
-import io.nekohasekai.sagernet.fmt.SingBoxOptions.DNSRule_Default
-import io.nekohasekai.sagernet.fmt.SingBoxOptions.RULE_SET_TYPE_REMOTE
-import io.nekohasekai.sagernet.fmt.SingBoxOptions.RULE_SET_TYPE_LOCAL
-import io.nekohasekai.sagernet.fmt.SingBoxOptions.RuleSet_Remote
-import io.nekohasekai.sagernet.fmt.SingBoxOptions.RuleSet_Local
-import io.nekohasekai.sagernet.fmt.SingBoxOptions.Rule_Default
-import io.nekohasekai.sagernet.fmt.SingBoxOptions.Rule_Logical
+import com.vvpn.android.fmt.SingBoxOptions.MyOptions
+import com.vvpn.android.fmt.SingBoxOptions.DNSOptions
+import com.vvpn.android.fmt.SingBoxOptions.RouteOptions
+import com.vvpn.android.fmt.SingBoxOptions.DNSRule_Logical
+import com.vvpn.android.fmt.SingBoxOptions.DNSRule_Default
+import com.vvpn.android.fmt.SingBoxOptions.RULE_SET_TYPE_REMOTE
+import com.vvpn.android.fmt.SingBoxOptions.RULE_SET_TYPE_LOCAL
+import com.vvpn.android.fmt.SingBoxOptions.RuleSet_Remote
+import com.vvpn.android.fmt.SingBoxOptions.RuleSet_Local
+import com.vvpn.android.fmt.SingBoxOptions.Rule_Default
+import com.vvpn.android.fmt.SingBoxOptions.Rule_Logical
 
 class SingBoxOptionsUtilKtTest {
 

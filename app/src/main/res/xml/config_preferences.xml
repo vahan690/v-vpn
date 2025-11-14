@@ -6,12 +6,12 @@
         app:title="@string/profile_name"
         app:useSimpleSummaryProvider="true" />
 
-    <io.nekohasekai.sagernet.widget.MaterialSwitchPreference
+    <com.vvpn.android.widget.MaterialSwitchPreference
         app:icon="@drawable/ic_baseline_import_contacts_24"
         app:key="isOutboundOnly"
         app:title="@string/is_outbound_only" />
 
-    <io.nekohasekai.sagernet.widget.EditConfigPreference
+    <com.vvpn.android.widget.EditConfigPreference
         app:icon="@drawable/ic_baseline_layers_24"
         app:key="serverConfig"
         app:title="@string/custom_config"

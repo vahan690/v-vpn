@@ -231,7 +231,7 @@
                         android:orientation="vertical"
                         android:paddingHorizontal="8dp"
                         android:paddingBottom="8dp"
-                        app:layoutManager="io.nekohasekai.sagernet.widget.FixedLinearLayout"
+                        app:layoutManager="com.vvpn.android.widget.FixedLinearLayout"
                         tools:listitem="@layout/view_clash_mode" />
 
                 </LinearLayout>

@@ -21,8 +21,8 @@ package fr.husi.plugin.juicity
 
 import android.net.Uri
 import android.os.ParcelFileDescriptor
-import io.nekohasekai.sagernet.plugin.NativePluginProvider
-import io.nekohasekai.sagernet.plugin.PathProvider
+import com.vvpn.android.plugin.NativePluginProvider
+import com.vvpn.android.plugin.PathProvider
 import java.io.File
 import java.io.FileNotFoundException
 

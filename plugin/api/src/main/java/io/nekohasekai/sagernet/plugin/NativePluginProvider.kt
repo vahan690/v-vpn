@@ -17,7 +17,7 @@
  *                                                                            *
  ******************************************************************************/
 
-package io.nekohasekai.sagernet.plugin
+package com.vvpn.android.plugin
 
 import android.content.ContentProvider
 import android.content.ContentValues

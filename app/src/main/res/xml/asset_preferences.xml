@@ -4,7 +4,7 @@
         app:key="assetName"
         app:title="@string/route_asset_name"
         app:useSimpleSummaryProvider="true" />
-    <io.nekohasekai.sagernet.widget.LinkOrContentPreference
+    <com.vvpn.android.widget.LinkOrContentPreference
         app:icon="@drawable/ic_baseline_link_24"
         app:key="assetUrl"
         app:title="@string/url"

@@ -1,0 +1,354 @@
+package com.vvpn.android.group
+
+import com.vvpn.android.Key
+import com.vvpn.android.R
+import com.vvpn.android.SagerNet.Companion.app
+import com.vvpn.android.SubscriptionType
+import com.vvpn.android.bg.DefaultNetworkMonitor
+import com.vvpn.android.database.DataStore
+import com.vvpn.android.database.GroupManager
+import com.vvpn.android.database.ProxyEntity
+import com.vvpn.android.database.ProxyGroup
+import com.vvpn.android.database.SagerDatabase
+import com.vvpn.android.database.SubscriptionBean
+import com.vvpn.android.fmt.AbstractBean
+import com.vvpn.android.fmt.SingBoxOptions
+import com.vvpn.android.fmt.http.HttpBean
+import com.vvpn.android.fmt.hysteria.HysteriaBean
+import com.vvpn.android.fmt.naive.NaiveBean
+import com.vvpn.android.fmt.v2ray.StandardV2RayBean
+import com.vvpn.android.fmt.v2ray.isTLS
+import com.vvpn.android.ktx.Logs
+import com.vvpn.android.ktx.getValue
+import com.vvpn.android.ktx.isIpAddress
+import com.vvpn.android.ktx.mapX
+import com.vvpn.android.ktx.readableMessage
+import com.vvpn.android.ktx.runOnDefaultDispatcher
+import com.vvpn.android.ktx.setValue
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.joinAll
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.newFixedThreadPoolContext
+import java.net.Inet4Address
+import java.net.InetAddress
+import java.util.Collections
+import java.util.concurrent.atomic.AtomicInteger
+
+@Suppress("EXPERIMENTAL_API_USAGE")
+abstract class GroupUpdater {
+
+    abstract suspend fun doUpdate(
+        proxyGroup: ProxyGroup,
+        subscription: SubscriptionBean,
+        userInterface: GroupManager.Interface?,
+        byUser: Boolean,
+    )
+
+    @OptIn(DelicateCoroutinesApi::class)
+    protected suspend fun forceResolve(
+        profiles: List<AbstractBean>, groupId: Long?,
+    ) {
+        val networkStrategy = DataStore.networkStrategy
+        val lookupPool = newFixedThreadPoolContext(5, "DNS Lookup")
+        val lookupJobs = mutableListOf<Job>()
+        if (groupId != null) {
+            GroupManager.postReload(groupId)
+        }
+        val ipv6First = when (networkStrategy) {
+            SingBoxOptions.STRATEGY_IPV6_ONLY, SingBoxOptions.STRATEGY_PREFER_IPV6 -> true
+            else -> false
+        }
+
+        for (profile in profiles) {
+            when (profile) {
+                // SNI rewrite unsupported
+                is NaiveBean -> continue
+            }
+
+            if (profile.serverAddress.isIpAddress()) continue
+
+            lookupJobs.add(GlobalScope.launch(lookupPool) {
+                try {
+                    val results = if (
+                        DataStore.enableFakeDns &&
+                        DataStore.serviceState.started &&
+                        DataStore.serviceMode == Key.MODE_VPN
+                    ) {
+                        // FakeDNS
+                        DefaultNetworkMonitor.require()
+                            .getAllByName(profile.serverAddress)
+                            .filterNotNull()
+                    } else {
+                        // System DNS is enough (when VPN connected, it uses v2ray-core)
+                        InetAddress.getAllByName(profile.serverAddress).filterNotNull()
+                    }
+                    if (results.isEmpty()) error("empty response")
+                    rewriteAddress(profile, results, ipv6First)
+                } catch (e: Exception) {
+                    Logs.d("Lookup ${profile.serverAddress} failed: ${e.readableMessage}", e)
+                }
+                if (groupId != null) {
+                    GroupManager.postReload(groupId)
+                }
+            })
+        }
+
+        lookupJobs.joinAll()
+        lookupPool.close()
+    }
+
+    protected fun rewriteAddress(
+        bean: AbstractBean, addresses: List<InetAddress>, ipv6First: Boolean,
+    ) {
+        val address = addresses.sortedBy { (it is Inet4Address) xor ipv6First }[0].hostAddress
+
+        with(bean) {
+            when (this) {
+                is HttpBean -> {
+                    if (isTLS() && sni.isBlank()) sni = bean.serverAddress
+                }
+
+                is StandardV2RayBean -> {
+                    when (security) {
+                        "tls" -> if (sni.isBlank()) sni = bean.serverAddress
+                    }
+                }
+
+                is HysteriaBean -> {
+                    if (sni.isBlank()) sni = bean.serverAddress
+                }
+            }
+
+            bean.serverAddress = address
+        }
+    }
+
+    /** Force resolve & remove deduplication */
+    open suspend fun tidyProxies(
+        proxies: List<AbstractBean>,
+        subscription: SubscriptionBean,
+        proxyGroup: ProxyGroup,
+        userInterface: GroupManager.Interface?,
+        byUser: Boolean,
+    ) {
+        var newProxies = if (subscription.filterNotRegex.isNotBlank()) {
+            val regex = subscription.filterNotRegex.toRegex()
+            proxies.filterNot { regex.containsMatchIn(it.name) }
+        } else {
+            proxies
+        }
+
+        val proxiesMap = LinkedHashMap<String, AbstractBean>()
+        for (proxy in newProxies) {
+            var index = 0
+            var name = proxy.displayName()
+            while (proxiesMap.containsKey(name)) {
+                println("Exists name: $name")
+                index++
+                name = name.replace(" (${index - 1})", "")
+                name = "$name ($index)"
+                proxy.name = name
+            }
+            proxiesMap[proxy.displayName()] = proxy
+        }
+        newProxies = proxiesMap.values.toList()
+
+        if (subscription.forceResolve) forceResolve(newProxies, proxyGroup.id)
+
+        val exists = SagerDatabase.proxyDao.getByGroup(proxyGroup.id)
+        val duplicate = ArrayList<String>()
+        if (subscription.deduplication) {
+            Logs.d("Before deduplication: ${newProxies.size}")
+            val uniqueProxies = LinkedHashSet<Deduplication>()
+            val uniqueNames = HashMap<Deduplication, String>()
+            for (_proxy in newProxies) {
+                val proxy = Deduplication(_proxy, _proxy.javaClass.toString())
+                if (!uniqueProxies.add(proxy)) {
+                    val index = uniqueProxies.indexOf(proxy)
+                    if (uniqueNames.containsKey(proxy)) {
+                        val name = uniqueNames[proxy]!!.replace(" ($index)", "")
+                        if (name.isNotBlank()) {
+                            duplicate.add("$name ($index)")
+                            uniqueNames[proxy] = ""
+                        }
+                    }
+                    duplicate.add(_proxy.displayName() + " ($index)")
+                } else {
+                    uniqueNames[proxy] = _proxy.displayName()
+                }
+            }
+            uniqueProxies.retainAll(uniqueNames.keys)
+            newProxies = uniqueProxies.toList().mapX { it.bean }
+        }
+
+        Logs.d("New profiles: ${newProxies.size}")
+
+        val nameMap = newProxies.associateBy { bean ->
+            bean.displayName()
+        }
+
+        Logs.d("Unique profiles: ${nameMap.size}")
+
+        val toDelete = ArrayList<ProxyEntity>()
+        val toReplace = exists.mapNotNull { entity ->
+            val name = entity.displayName()
+            if (nameMap.contains(name)) name to entity else let {
+                toDelete.add(entity)
+                null
+            }
+        }.toMap()
+
+        Logs.d("toDelete profiles: ${toDelete.size}")
+        Logs.d("toReplace profiles: ${toReplace.size}")
+
+        val toUpdate = ArrayList<ProxyEntity>()
+        val added = mutableListOf<String>()
+        val updated = mutableMapOf<String, String>()
+        val deleted = toDelete.mapX { it.displayName() }
+
+        var userOrder = 1L
+        var changed = toDelete.size
+        for ((name, bean) in nameMap.entries) {
+            if (toReplace.contains(name)) {
+                val entity = toReplace[name]!!
+                val existsBean = entity.requireBean()
+                existsBean.applyFeatureSettings(bean)
+                when {
+                    existsBean != bean -> {
+                        changed++
+                        entity.putBean(bean)
+                        toUpdate.add(entity)
+                        updated[entity.displayName()] = name
+
+                        Logs.d("Updated profile: $name")
+                    }
+
+                    entity.userOrder != userOrder -> {
+                        entity.putBean(bean)
+                        toUpdate.add(entity)
+                        entity.userOrder = userOrder
+
+                        Logs.d("Reordered profile: $name")
+                    }
+
+                    else -> {
+                        Logs.d("Ignored profile: $name")
+                    }
+                }
+            } else {
+                changed++
+                SagerDatabase.proxyDao.addProxy(
+                    ProxyEntity(
+                        groupId = proxyGroup.id, userOrder = userOrder
+                    ).apply {
+                        putBean(bean)
+                    })
+                added.add(name)
+                Logs.d("Inserted profile: $name")
+            }
+            userOrder++
+        }
+
+        SagerDatabase.proxyDao.updateProxy(toUpdate).also {
+            Logs.d("Updated profiles: $it")
+        }
+
+        SagerDatabase.proxyDao.deleteProxy(toDelete).also {
+            Logs.d("Deleted profiles: $it")
+        }
+
+        val existCount = SagerDatabase.proxyDao.countByGroup(proxyGroup.id).toInt()
+
+        if (existCount != newProxies.size) {
+            Logs.e("Exist profiles: $existCount, new profiles: ${newProxies.size}")
+        }
+
+        subscription.lastUpdated = (System.currentTimeMillis() / 1000).toInt()
+        SagerDatabase.groupDao.updateGroup(proxyGroup)
+        finishUpdate(proxyGroup)
+
+        userInterface?.onUpdateSuccess(
+            proxyGroup, changed, added, updated, deleted, duplicate, byUser
+        )
+    }
+
+    companion object {
+
+        val updating = Collections.synchronizedSet<Long>(mutableSetOf())
+
+        fun startUpdate(proxyGroup: ProxyGroup, byUser: Boolean) {
+            runOnDefaultDispatcher {
+                executeUpdate(proxyGroup, byUser)
+            }
+        }
+
+        class Deduplication(
+            val bean: AbstractBean, val type: String
+        ) {
+
+            fun hash(): String {
+                return bean.serverAddress + bean.serverPort + type
+            }
+
+            override fun hashCode(): Int {
+                return hash().toByteArray().contentHashCode()
+            }
+
+            override fun equals(other: Any?): Boolean {
+                if (this === other) return true
+                if (javaClass != other?.javaClass) return false
+
+                other as Deduplication
+
+                return hash() == other.hash()
+            }
+
+        }
+
+        suspend fun executeUpdate(proxyGroup: ProxyGroup, byUser: Boolean): Boolean {
+            return coroutineScope {
+                if (!updating.add(proxyGroup.id)) cancel()
+                GroupManager.postReload(proxyGroup.id)
+
+                val subscription = proxyGroup.subscription!!
+                val connected = DataStore.serviceState.connected
+                val userInterface = GroupManager.userInterface
+
+                if (byUser && (subscription.link?.startsWith("http://") == true || subscription.updateWhenConnectedOnly) && !connected) {
+                    if (userInterface == null || !userInterface.confirm(app.getStringCompat(R.string.update_subscription_warning))) {
+                        finishUpdate(proxyGroup)
+                        cancel()
+                        return@coroutineScope true
+                    }
+                }
+
+                try {
+                    when (subscription.type) {
+                        SubscriptionType.RAW -> RawUpdater
+                        SubscriptionType.OOCv1 -> OpenOnlineConfigUpdater
+                        SubscriptionType.SIP008 -> SIP008Updater
+                        else -> throw IllegalArgumentException()
+                    }.doUpdate(proxyGroup, subscription, userInterface, byUser)
+                    true
+                } catch (e: Throwable) {
+                    Logs.w(e)
+                    userInterface?.onUpdateFailure(proxyGroup, e.readableMessage)
+                    finishUpdate(proxyGroup)
+                    false
+                }
+            }
+        }
+
+
+        suspend fun finishUpdate(proxyGroup: ProxyGroup) {
+            updating.remove(proxyGroup.id)
+            GroupManager.postUpdate(proxyGroup)
+        }
+
+    }
+
+}
