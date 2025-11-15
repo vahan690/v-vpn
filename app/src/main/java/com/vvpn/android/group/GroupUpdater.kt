@@ -13,11 +13,7 @@ import com.vvpn.android.database.SagerDatabase
 import com.vvpn.android.database.SubscriptionBean
 import com.vvpn.android.fmt.AbstractBean
 import com.vvpn.android.fmt.SingBoxOptions
-import com.vvpn.android.fmt.http.HttpBean
 import com.vvpn.android.fmt.hysteria.HysteriaBean
-import com.vvpn.android.fmt.naive.NaiveBean
-import com.vvpn.android.fmt.v2ray.StandardV2RayBean
-import com.vvpn.android.fmt.v2ray.isTLS
 import com.vvpn.android.ktx.Logs
 import com.vvpn.android.ktx.getValue
 import com.vvpn.android.ktx.isIpAddress
@@ -64,11 +60,6 @@ abstract class GroupUpdater {
         }
 
         for (profile in profiles) {
-            when (profile) {
-                // SNI rewrite unsupported
-                is NaiveBean -> continue
-            }
-
             if (profile.serverAddress.isIpAddress()) continue
 
             lookupJobs.add(GlobalScope.launch(lookupPool) {
@@ -108,16 +99,6 @@ abstract class GroupUpdater {
 
         with(bean) {
             when (this) {
-                is HttpBean -> {
-                    if (isTLS() && sni.isBlank()) sni = bean.serverAddress
-                }
-
-                is StandardV2RayBean -> {
-                    when (security) {
-                        "tls" -> if (sni.isBlank()) sni = bean.serverAddress
-                    }
-                }
-
                 is HysteriaBean -> {
                     if (sni.isBlank()) sni = bean.serverAddress
                 }

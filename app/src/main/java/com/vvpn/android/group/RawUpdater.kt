@@ -8,11 +8,12 @@ import com.vvpn.android.database.ProxyGroup
 import com.vvpn.android.database.SubscriptionBean
 import com.vvpn.android.fmt.AbstractBean
 import com.vvpn.android.fmt.hysteria.parseHysteria1Json
-import com.vvpn.android.fmt.parseOutbound
-import com.vvpn.android.fmt.shadowsocks.parseShadowsocks
-import com.vvpn.android.fmt.v2ray.StandardV2RayBean
-import com.vvpn.android.fmt.v2ray.isTLS
-import com.vvpn.android.fmt.wireguard.WireGuardBean
+// Removed: shadowsocks, v2ray, wireguard (deleted protocols)
+// import com.vvpn.android.fmt.parseOutbound
+// import com.vvpn.android.fmt.shadowsocks.parseShadowsocks
+// import com.vvpn.android.fmt.v2ray.StandardV2RayBean
+// import com.vvpn.android.fmt.v2ray.isTLS
+// import com.vvpn.android.fmt.wireguard.WireGuardBean
 import com.vvpn.android.ktx.Logs
 import com.vvpn.android.ktx.SubscriptionFoundException
 import com.vvpn.android.ktx.applyDefaultValues
@@ -98,6 +99,8 @@ object RawUpdater : GroupUpdater() {
 
         val proxies = mutableListOf<AbstractBean>()
 
+        // WireGuard parsing removed (deleted protocol)
+        /*
         if (text.contains("[Interface]")) {
             // wireguard
             try {
@@ -110,6 +113,7 @@ object RawUpdater : GroupUpdater() {
                 Logs.w(e)
             }
         }
+        */
 
         try {
             val json = JSONTokener(text).nextValue()
@@ -136,6 +140,8 @@ object RawUpdater : GroupUpdater() {
         return null
     }
 
+    // WireGuard parsing function removed (deleted protocol)
+    /*
     fun parseWireGuard(conf: String): List<WireGuardBean> {
         val ini = Ini(StringReader(conf))
         val iface = ini["Interface"] ?: error("Missing 'Interface' selection")
@@ -168,6 +174,7 @@ object RawUpdater : GroupUpdater() {
         if (beans.isEmpty()) error("Empty available peer list")
         return beans
     }
+    */
 
     fun parseJSON(json: Any): List<AbstractBean> {
         val proxies = ArrayList<AbstractBean>()
@@ -206,35 +213,37 @@ object RawUpdater : GroupUpdater() {
                     }
                 }
 
-                // server + server_port or server_ports -> outbound
-                json.has("server") && (json.has("server_port") || json.has("server_ports")) -> {
-                    // Single sing-box outbound
-                    return parseOutbound(json.map)?.let {
-                        listOf(it)
-                    } ?: errNotFound()
-                }
+                // V2Ray/sing-box outbound parsing removed (deleted protocol)
+                // json.has("server") && (json.has("server_port") || json.has("server_ports")) -> {
+                //     // Single sing-box outbound
+                //     return parseOutbound(json.map)?.let {
+                //         listOf(it)
+                //     } ?: errNotFound()
+                // }
 
-                // single endpoint
-                json.has("peers") -> return parseOutbound(json.map)?.let {
-                    listOf(it)
-                } ?: errNotFound()
+                // Endpoint parsing removed (deleted protocol)
+                // json.has("peers") -> return parseOutbound(json.map)?.let {
+                //     listOf(it)
+                // } ?: errNotFound()
 
                 json.has("server") && (json.has("up") || json.has("up_mbps")) -> {
                     return listOf(json.parseHysteria1Json())
                 }
 
-                json.has("method") -> {
-                    return listOf(json.parseShadowsocks())
-                }
+                // Shadowsocks parsing removed (deleted protocol)
+                // json.has("method") -> {
+                //     return listOf(json.parseShadowsocks())
+                // }
 
-                json.has("version") && json.has("servers") -> {
-                    // try to parse SIP008
-                    json.getJSONArray("servers").forEach { _, it ->
-                        if (it is JSONObject) {
-                            proxies.add(it.parseShadowsocks())
-                        }
-                    }
-                }
+                // SIP008 shadowsocks parsing removed (deleted protocol)
+                // json.has("version") && json.has("servers") -> {
+                //     // try to parse SIP008
+                //     json.getJSONArray("servers").forEach { _, it ->
+                //         if (it is JSONObject) {
+                //             proxies.add(it.parseShadowsocks())
+                //         }
+                //     }
+                // }
 
                 else -> {
                     errNotFound()
@@ -251,12 +260,13 @@ object RawUpdater : GroupUpdater() {
 
         proxies.forEach {
             it.initializeDefaultValues()
-            if (it is StandardV2RayBean) {
-                // 1. Fix SNI for end users.
-                if (it.isTLS() && it.sni.isNullOrBlank() && !it.host.isNullOrBlank() && !it.host.isIpAddress()) {
-                    it.sni = it.host
-                }
-            }
+            // V2Ray SNI fix removed (deleted protocol)
+            // if (it is StandardV2RayBean) {
+            //     // 1. Fix SNI for end users.
+            //     if (it.isTLS() && it.sni.isNullOrBlank() && !it.host.isNullOrBlank() && !it.host.isIpAddress()) {
+            //         it.sni = it.host
+            //     }
+            // }
         }
         return proxies
     }

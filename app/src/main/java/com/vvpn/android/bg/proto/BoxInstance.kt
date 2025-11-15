@@ -11,14 +11,6 @@ import com.vvpn.android.fmt.ConfigBuildResult
 import com.vvpn.android.fmt.buildConfig
 import com.vvpn.android.fmt.hysteria.HysteriaBean
 import com.vvpn.android.fmt.hysteria.buildHysteriaConfig
-import com.vvpn.android.fmt.juicity.JuicityBean
-import com.vvpn.android.fmt.juicity.buildJuicityConfig
-import com.vvpn.android.fmt.mieru.MieruBean
-import com.vvpn.android.fmt.mieru.buildMieruConfig
-import com.vvpn.android.fmt.naive.NaiveBean
-import com.vvpn.android.fmt.naive.buildNaiveConfig
-import com.vvpn.android.fmt.shadowquic.ShadowQUICBean
-import com.vvpn.android.fmt.shadowquic.buildShadowQUICConfig
 import com.vvpn.android.ktx.Logs
 import com.vvpn.android.ktx.runOnDefaultDispatcher
 import com.vvpn.android.plugin.PluginManager
@@ -67,17 +59,6 @@ abstract class BoxInstance(
             chain.entries.forEach { (port, profile) ->
                 when (val bean = profile.requireBean()) {
 
-                    is MieruBean -> {
-                        initPlugin("mieru-plugin")
-                        pluginConfigs[port] =
-                            profile.type to bean.buildMieruConfig(port, logLevel)
-                    }
-
-                    is NaiveBean -> {
-                        initPlugin("naive-plugin")
-                        pluginConfigs[port] = profile.type to bean.buildNaiveConfig(port)
-                    }
-
                     is HysteriaBean -> {
                         when (bean.protocolVersion) {
                             HysteriaBean.PROTOCOL_VERSION_1 -> initPlugin("hysteria-plugin")
@@ -93,17 +74,6 @@ abstract class BoxInstance(
                                     cacheFiles.add(this)
                                 }
                             }
-                    }
-
-                    is JuicityBean -> {
-                        initPlugin("juicity-plugin")
-                        pluginConfigs[port] = profile.type to bean.buildJuicityConfig(port, isVPN)
-                    }
-
-                    is ShadowQUICBean -> {
-                        initPlugin("shadowquic-plugin")
-                        pluginConfigs[port] =
-                            profile.type to bean.buildShadowQUICConfig(port, isVPN, logLevel)
                     }
                 }
             }
@@ -124,45 +94,6 @@ abstract class BoxInstance(
                 when {
                     externalInstances.containsKey(port) -> {
                         externalInstances[port]!!.launch()
-                    }
-
-                    bean is MieruBean -> {
-                        val configFile = File(
-                            cacheDir, "mieru_" + SystemClock.elapsedRealtime() + ".json"
-                        )
-
-                        configFile.parentFile?.mkdirs()
-                        configFile.writeText(config)
-                        cacheFiles.add(configFile)
-
-                        val envMap = mutableMapOf(
-                            "MIERU_CONFIG_JSON_FILE" to configFile.absolutePath,
-                            "MIERU_PROTECT_PATH" to Libcore.ProtectPath,
-                        )
-
-                        val commands = mutableListOf(
-                            initPlugin("mieru-plugin").path, "run",
-                        )
-
-                        processes.start(commands, envMap)
-                    }
-
-                    bean is NaiveBean -> {
-                        val configFile = File(
-                            cacheDir, "naive_" + SystemClock.elapsedRealtime() + ".json"
-                        )
-
-                        configFile.parentFile?.mkdirs()
-                        configFile.writeText(config)
-                        cacheFiles.add(configFile)
-
-                        val envMap = mutableMapOf<String, String>()
-
-                        val commands = mutableListOf(
-                            initPlugin("naive-plugin").path, configFile.absolutePath
-                        )
-
-                        processes.start(commands, envMap)
                     }
 
                     bean is HysteriaBean -> {
@@ -201,45 +132,6 @@ abstract class BoxInstance(
 
                         processes.start(commands, envMap)
                     }
-
-                    bean is JuicityBean -> {
-                        val configFile = File(
-                            cacheDir, "juicity_" + SystemClock.elapsedRealtime() + ".json"
-                        )
-
-                        configFile.parentFile?.mkdirs()
-                        configFile.writeText(config)
-                        cacheFiles.add(configFile)
-
-                        val envMap = mutableMapOf(
-                            "QUIC_GO_DISABLE_GSO" to "1"
-                        )
-
-                        val commands = mutableListOf(
-                            initPlugin("juicity-plugin").path, "run",
-                            "-c", configFile.absolutePath,
-                        )
-
-                        processes.start(commands, envMap)
-                    }
-
-                    bean is ShadowQUICBean -> {
-                        val configFile = File(
-                            cacheDir, "shadowquic_" + SystemClock.elapsedRealtime() + ".yaml"
-                        )
-
-                        configFile.parentFile?.mkdirs()
-                        configFile.writeText(config)
-                        cacheFiles.add(configFile)
-
-                        val commands = mutableListOf(
-                            initPlugin("shadowquic-plugin").path,
-                            "-c", configFile.absolutePath,
-                        )
-
-                        processes.start(commands)
-                    }
-
                 }
             }
         }

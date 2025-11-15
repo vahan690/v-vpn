@@ -2,9 +2,11 @@ package com.vvpn.android.database
 
 import androidx.room.AutoMigration
 import androidx.room.Database
+import androidx.room.DeleteColumn
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
+import androidx.room.migration.AutoMigrationSpec
 import dev.matrix.roomigrant.GenerateRoomMigrations
 import com.vvpn.android.Key
 import com.vvpn.android.SagerNet.Companion.app
@@ -16,21 +18,8 @@ import kotlinx.coroutines.launch
 
 @Database(
     entities = [ProxyGroup::class, ProxyEntity::class, RuleEntity::class, AssetEntity::class],
-    version = 14,
-    autoMigrations = [
-        AutoMigration(from = 1, to = 2),
-        AutoMigration(from = 2, to = 3, spec = SagerDatabase_Migration_2_3::class),
-        AutoMigration(from = 3, to = 4),
-        AutoMigration(from = 4, to = 5),
-        AutoMigration(from = 5, to = 6, spec = SagerDatabase_Migration_5_6::class),
-        AutoMigration(from = 7, to = 8),
-        AutoMigration(from = 8, to = 9),
-        AutoMigration(from = 9, to = 10),
-        AutoMigration(from = 10, to = 11),
-        AutoMigration(from = 11, to = 12),
-        AutoMigration(from = 12, to = 13, spec = SagerDatabase_Migration_12_13::class),
-        AutoMigration(from = 13, to = 14),
-    ],
+    version = 15,
+    exportSchema = true
 )
 @TypeConverters(value = [KryoConverters::class, GsonConverters::class])
 @GenerateRoomMigrations

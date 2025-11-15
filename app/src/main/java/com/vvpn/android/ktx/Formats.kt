@@ -4,19 +4,9 @@ import android.util.Base64
 import com.google.gson.JsonParser
 import com.vvpn.android.fmt.AbstractBean
 import com.vvpn.android.fmt.Serializable
-import com.vvpn.android.fmt.anytls.parseAnyTLS
-import com.vvpn.android.fmt.http.parseHttp
 import com.vvpn.android.fmt.hysteria.parseHysteria1
 import com.vvpn.android.fmt.hysteria.parseHysteria2
-import com.vvpn.android.fmt.juicity.parseJuicity
-import com.vvpn.android.fmt.mieru.parseMieru
-import com.vvpn.android.fmt.naive.parseNaive
 import com.vvpn.android.fmt.parseUniversal
-import com.vvpn.android.fmt.shadowsocks.parseShadowsocks
-import com.vvpn.android.fmt.socks.parseSOCKS
-import com.vvpn.android.fmt.trojan.parseTrojan
-import com.vvpn.android.fmt.tuic.parseTuic
-import com.vvpn.android.fmt.v2ray.parseV2Ray
 import org.json.JSONArray
 import org.json.JSONException
 import org.json.JSONObject
@@ -210,61 +200,6 @@ suspend fun parseProxies(text: String): List<AbstractBean> {
                 }
             }
 
-            "socks", "socks4", "socks4a", "socks5" -> {
-                Logs.d("Try parse socks link: $this")
-                runCatching {
-                    entities.add(parseSOCKS(this))
-                }.onFailure {
-                    Logs.w(it)
-                }
-            }
-
-            "http", "https" -> {
-                Logs.d("Try parse http link: $this")
-                try {
-                    entities.add(parseHttp(this))
-                } catch (e: Exception) {
-                    Logs.w(e)
-                }
-            }
-
-            "vmess", "vless" -> {
-                Logs.d("Try parse v2ray link: $this")
-                runCatching {
-                    entities.add(parseV2Ray(this))
-                }.onFailure {
-                    Logs.w(it)
-                }
-            }
-
-            // Trojan-go was partially compatible
-            "trojan", "trojan-go" -> {
-                Logs.d("Try parse trojan link: $this")
-                runCatching {
-                    entities.add(parseTrojan(this))
-                }.onFailure {
-                    Logs.w(it)
-                }
-            }
-
-            "ss" -> {
-                Logs.d("Try parse shadowsocks link: $this")
-                runCatching {
-                    entities.add(parseShadowsocks(this))
-                }.onFailure {
-                    Logs.w(it)
-                }
-            }
-
-            "naive+https", "naive+quic" -> {
-                Logs.d("Try parse naive link: $this")
-                runCatching {
-                    entities.add(parseNaive(this))
-                }.onFailure {
-                    Logs.w(it)
-                }
-            }
-
             "hysteria" -> {
                 Logs.d("Try parse hysteria1 link: $this")
                 runCatching {
@@ -282,43 +217,6 @@ suspend fun parseProxies(text: String): List<AbstractBean> {
                     Logs.w(it)
                 }
             }
-
-            "tuic" -> {
-                Logs.d("Try parse TUIC link: $this")
-                runCatching {
-                    entities.add(parseTuic(this))
-                }.onFailure {
-                    Logs.w(it)
-                }
-            }
-
-            "juicity" -> {
-                Logs.d("Try parse Juicity link: $this")
-                runCatching {
-                    entities.add(parseJuicity(this))
-                }.onFailure {
-                    Logs.w(it)
-                }
-            }
-
-            "mierus" -> {
-                Logs.d("Try parse Mieru link: $this")
-                runCatching {
-                    entities.add(parseMieru(this))
-                }.onFailure {
-                    Logs.w(it)
-                }
-            }
-
-            "anytls" -> {
-                Logs.d("Try parse AnyTLS link: $this")
-                runCatching {
-                    entities.add(parseAnyTLS(this))
-                }.onFailure {
-                    Logs.w(it)
-                }
-            }
-
         }
     }
 

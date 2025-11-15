@@ -9,47 +9,15 @@ import com.vvpn.android.fmt.SingBoxOptions.OutboundMultiplexOptions
 import com.vvpn.android.fmt.SingBoxOptions.OutboundRealityOptions
 import com.vvpn.android.fmt.SingBoxOptions.OutboundTLSOptions
 import com.vvpn.android.fmt.SingBoxOptions.OutboundUTLSOptions
-import com.vvpn.android.fmt.SingBoxOptions.TYPE_ANYTLS
-import com.vvpn.android.fmt.SingBoxOptions.TYPE_HTTP
 import com.vvpn.android.fmt.SingBoxOptions.TYPE_HYSTERIA
 import com.vvpn.android.fmt.SingBoxOptions.TYPE_HYSTERIA2
-import com.vvpn.android.fmt.SingBoxOptions.TYPE_SHADOWSOCKS
-import com.vvpn.android.fmt.SingBoxOptions.TYPE_SOCKS
-import com.vvpn.android.fmt.SingBoxOptions.TYPE_SSH
-import com.vvpn.android.fmt.SingBoxOptions.TYPE_TROJAN
-import com.vvpn.android.fmt.SingBoxOptions.TYPE_TUIC
-import com.vvpn.android.fmt.SingBoxOptions.TYPE_VLESS
-import com.vvpn.android.fmt.SingBoxOptions.TYPE_VMESS
-import com.vvpn.android.fmt.SingBoxOptions.TYPE_WIREGUARD
-import com.vvpn.android.fmt.anytls.AnyTLSBean
-import com.vvpn.android.fmt.anytls.buildSingBoxOutboundAnyTLSBean
-import com.vvpn.android.fmt.anytls.parseAnyTLSOutbound
 import com.vvpn.android.fmt.config.ConfigBean
 import com.vvpn.android.fmt.direct.DirectBean
 import com.vvpn.android.fmt.direct.buildSingBoxOutboundDirectBean
-import com.vvpn.android.fmt.http.parseHttpOutbound
 import com.vvpn.android.fmt.hysteria.HysteriaBean
 import com.vvpn.android.fmt.hysteria.buildSingBoxOutboundHysteriaBean
 import com.vvpn.android.fmt.hysteria.parseHysteria1Outbound
 import com.vvpn.android.fmt.hysteria.parseHysteria2Outbound
-import com.vvpn.android.fmt.shadowsocks.ShadowsocksBean
-import com.vvpn.android.fmt.shadowsocks.buildSingBoxOutboundShadowsocksBean
-import com.vvpn.android.fmt.shadowsocks.parseShadowsocksOutbound
-import com.vvpn.android.fmt.socks.SOCKSBean
-import com.vvpn.android.fmt.socks.buildSingBoxOutboundSocksBean
-import com.vvpn.android.fmt.socks.parseSocksOutbound
-import com.vvpn.android.fmt.ssh.SSHBean
-import com.vvpn.android.fmt.ssh.buildSingBoxOutboundSSHBean
-import com.vvpn.android.fmt.ssh.parseSSHOutbound
-import com.vvpn.android.fmt.tuic.TuicBean
-import com.vvpn.android.fmt.tuic.buildSingBoxOutboundTuicBean
-import com.vvpn.android.fmt.tuic.parseTuicOutbound
-import com.vvpn.android.fmt.v2ray.StandardV2RayBean
-import com.vvpn.android.fmt.v2ray.buildSingBoxOutboundStandardV2RayBean
-import com.vvpn.android.fmt.v2ray.parseStandardV2RayOutbound
-import com.vvpn.android.fmt.wireguard.WireGuardBean
-import com.vvpn.android.fmt.wireguard.buildSingBoxEndpointWireGuardBean
-import com.vvpn.android.fmt.wireguard.parseWireGuardEndpoint
 import com.vvpn.android.ktx.JSONMap
 import com.vvpn.android.ktx.forEach
 import com.vvpn.android.ktx.gson
@@ -60,14 +28,7 @@ fun buildSingBoxOutbound(bean: AbstractBean): String {
     val map = when (bean) {
         is ConfigBean -> return bean.config // What if full config?
         is DirectBean -> buildSingBoxOutboundDirectBean(bean)
-        is StandardV2RayBean -> buildSingBoxOutboundStandardV2RayBean(bean)
         is HysteriaBean -> buildSingBoxOutboundHysteriaBean(bean)
-        is ShadowsocksBean -> buildSingBoxOutboundShadowsocksBean(bean)
-        is SOCKSBean -> buildSingBoxOutboundSocksBean(bean)
-        is SSHBean -> buildSingBoxOutboundSSHBean(bean)
-        is TuicBean -> buildSingBoxOutboundTuicBean(bean)
-        is WireGuardBean -> buildSingBoxEndpointWireGuardBean(bean) // is it outbound?
-        is AnyTLSBean -> buildSingBoxOutboundAnyTLSBean(bean)
         else -> error("invalid bean: ${bean.javaClass.simpleName}")
     }
     map.type = bean.outboundType()
@@ -104,25 +65,9 @@ fun buildSingBoxMux(bean: AbstractBean): OutboundMultiplexOptions? {
 }
 
 fun parseOutbound(json: JSONMap): AbstractBean? = when (json["type"].toString()) {
-    TYPE_SOCKS -> parseSocksOutbound(json)
-
-    TYPE_HTTP -> parseHttpOutbound(json)
-
-    TYPE_SHADOWSOCKS -> parseShadowsocksOutbound(json)
-
-    TYPE_VMESS, TYPE_VLESS, TYPE_TROJAN -> parseStandardV2RayOutbound(json)
-
-    TYPE_WIREGUARD -> parseWireGuardEndpoint(json)
-
     TYPE_HYSTERIA -> parseHysteria1Outbound(json)
 
     TYPE_HYSTERIA2 -> parseHysteria2Outbound(json)
-
-    TYPE_TUIC -> parseTuicOutbound(json)
-
-    TYPE_SSH -> parseSSHOutbound(json)
-
-    TYPE_ANYTLS -> parseAnyTLSOutbound(json)
 
     else -> null
 }

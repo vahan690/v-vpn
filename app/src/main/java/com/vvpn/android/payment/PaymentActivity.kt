@@ -25,6 +25,7 @@ class PaymentActivity : AppCompatActivity() {
     private lateinit var monthlyButton: Button
     private lateinit var yearlyButton: Button
     private lateinit var enterLicenseButton: Button
+    private lateinit var logoutButton: Button
     private lateinit var progressBar: ProgressBar
     private lateinit var errorText: TextView
 
@@ -52,6 +53,7 @@ class PaymentActivity : AppCompatActivity() {
         monthlyButton = findViewById(R.id.monthlyButton)
         yearlyButton = findViewById(R.id.yearlyButton)
         enterLicenseButton = findViewById(R.id.enterLicenseButton)
+        logoutButton = findViewById(R.id.logoutButton)
         progressBar = findViewById(R.id.progressBar)
         errorText = findViewById(R.id.errorText)
 
@@ -69,6 +71,10 @@ class PaymentActivity : AppCompatActivity() {
 
         enterLicenseButton.setOnClickListener {
             showEnterLicenseDialog()
+        }
+
+        logoutButton.setOnClickListener {
+            handleLogout()
         }
     }
 
@@ -221,8 +227,23 @@ class PaymentActivity : AppCompatActivity() {
         CoroutineScope(Dispatchers.Main).launch {
             try {
                 val deviceId = paymentManager.getDeviceId()
+                val token = authManager.getAuthToken()
+                val currentUser = authManager.getCurrentUser()
+
+                if (token == null || currentUser == null) {
+                    showError("Authentication error. Please login again.")
+                    return@launch
+                }
+
+                // Use verifyAndLinkLicense to bind the license to the user
                 val response = withContext(Dispatchers.IO) {
-                    paymentManager.verifyLicense(licenseKey, deviceId)
+                    paymentManager.verifyAndLinkLicense(
+                        licenseKey,
+                        deviceId,
+                        currentUser.id,
+                        currentUser.email,
+                        token
+                    )
                 }
 
                 if (response.isValid && response.expiryDate != null && response.planId != null) {
@@ -231,7 +252,7 @@ class PaymentActivity : AppCompatActivity() {
                         deviceId,
                         response.expiryDate,
                         response.planId,
-                        authManager.getUserEmail()
+                        currentUser.email
                     )
 
                 // Show success message and stay on payment screen
@@ -276,8 +297,24 @@ class PaymentActivity : AppCompatActivity() {
         CoroutineScope(Dispatchers.Main).launch {
             try {
                 val deviceId = paymentManager.getDeviceId()
+                val token = authManager.getAuthToken()
+                val currentUser = authManager.getCurrentUser()
+
+                if (token == null || currentUser == null) {
+                    progressBar.visibility = View.GONE
+                    showError("Authentication error. Please login again.")
+                    return@launch
+                }
+
+                // Use verifyAndLinkLicense to bind the license to the user
                 val response = withContext(Dispatchers.IO) {
-                    paymentManager.verifyLicense(licenseKey, deviceId)
+                    paymentManager.verifyAndLinkLicense(
+                        licenseKey,
+                        deviceId,
+                        currentUser.id,
+                        currentUser.email,
+                        token
+                    )
                 }
 
                 progressBar.visibility = View.GONE
@@ -288,7 +325,7 @@ class PaymentActivity : AppCompatActivity() {
                         deviceId,
                         response.expiryDate,
                         response.planId,
-                        authManager.getUserEmail()
+                        currentUser.email
                     )
 
                 // Show success message and stay on payment screen
@@ -306,6 +343,7 @@ class PaymentActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 progressBar.visibility = View.GONE
                 showError("Verification error: ${e.message}")
+                Log.e("PaymentActivity", "License verification error", e)
             }
         }
     }
@@ -313,6 +351,28 @@ class PaymentActivity : AppCompatActivity() {
     private fun showError(message: String) {
         errorText.text = message
         errorText.visibility = View.VISIBLE
+    }
+
+    private fun handleLogout() {
+        AlertDialog.Builder(this)
+            .setTitle("Switch Account")
+            .setMessage("Are you sure you want to logout and switch to a different account?")
+            .setPositiveButton("Yes") { _, _ ->
+                // Clear auth and license data
+                authManager.logout()
+                licenseManager.clearLicense()
+
+                // Cancel any ongoing operations
+                pollingJob?.cancel()
+
+                // Navigate back to login
+                val intent = android.content.Intent(this, LoginActivity::class.java)
+                intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                startActivity(intent)
+                finish()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     override fun onDestroy() {

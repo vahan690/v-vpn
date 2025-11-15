@@ -41,8 +41,8 @@ class SagerDatabase_Migration_5_6 : AutoMigrationSpec
 
 object SagerDatabase_Migration_6_7 : Migration(6, 7) {
     override fun migrate(db: SupportSQLiteDatabase) {
-        db.execSQL("DELETE FROM proxy_entities WHERE type = " + ProxyEntity.TYPE_TROJAN_GO.toString())
-        db.execSQL("DELETE FROM proxy_entities WHERE type = " + ProxyEntity.TYPE_NEKO.toString())
+        db.execSQL("DELETE FROM proxy_entities WHERE type = " + 7 /* Deleted TYPE_TROJAN_GO */)
+        db.execSQL("DELETE FROM proxy_entities WHERE type = " + 999 /* Deleted TYPE_NEKO */)
     }
 }
 

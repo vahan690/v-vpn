@@ -79,6 +79,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.security.MessageDigest
@@ -123,6 +124,10 @@ class MainActivity : ThemedActivity(),
         // Handle deep link FIRST before auth check
         handleDeepLink(intent)
 
+        // Check if we're coming from a fresh login (skip early license check)
+        val fromLogin = intent.getBooleanExtra("FROM_LOGIN", false)
+        Log.d("MainActivity", "FROM_LOGIN flag: $fromLogin")
+
         // Check if user is logged in
         if (!authManager.isLoggedIn()) {
             Log.d("MainActivity", "User not logged in, showing login screen")
@@ -136,7 +141,16 @@ class MainActivity : ThemedActivity(),
             return
         }
 
-        // Check crypto license on startup
+        // If coming from login, skip license check and fetch licenses instead
+        if (fromLogin) {
+            Log.d("MainActivity", "Coming from login, fetching licenses...")
+            setContentView(android.R.layout.simple_list_item_1)
+            isCheckingAuth = true
+            fetchAndSaveLicenses()
+            return
+        }
+
+        // Check crypto license on startup (only if NOT coming from login)
         if (!licenseManager.isLicenseValid()) {
             Log.d("MainActivity", "No valid license, showing payment screen")
 
@@ -830,46 +844,90 @@ class MainActivity : ThemedActivity(),
         }
     }
 
-    // NEW: License fetching functionality
+    // NEW: License fetching functionality - using coroutines for reliability
     private fun fetchAndSaveLicenses() {
         val deviceId = android.provider.Settings.Secure.getString(contentResolver, android.provider.Settings.Secure.ANDROID_ID)
-        
-        Thread {
+        val currentUserEmail = authManager.getUserEmail()
+
+        Log.d("MainActivity", "=== Fetching licenses ===")
+        Log.d("MainActivity", "Device ID: $deviceId")
+        Log.d("MainActivity", "Current user email: $currentUserEmail")
+
+        CoroutineScope(Dispatchers.Main).launch {
             try {
-                val url = URL("https://api.vvpn.space/api/license/device/$deviceId")
-                val connection = url.openConnection() as HttpsURLConnection
-                connection.requestMethod = "GET"
-                connection.connectTimeout = 10000
-                connection.readTimeout = 10000
-                
-                val responseCode = connection.responseCode
-                if (responseCode == 200) {
-                    val response = connection.inputStream.bufferedReader().readText()
-                    val json = JSONObject(response)
-                    
-                    if (json.getBoolean("success")) {
-                        val licenses = json.getJSONArray("licenses")
-                        
-                        if (licenses.length() > 0) {
-                            // Save the first valid license
-                            val license = licenses.getJSONObject(0)
-                            val licenseKey = license.getString("license_key")
-                            val planId = license.getString("plan_id")
-                            val expiryDate = license.getString("expiry_date")
-                            val userEmail = license.getString("user_email")
-                            
-                            licenseManager.saveLicense(licenseKey, deviceId, expiryDate, planId, userEmail)
-                            Log.d("MainActivity", "License saved: $licenseKey for $userEmail")
+                val result = withContext(Dispatchers.IO) {
+                    try {
+                        // Fetch all licenses for this device
+                        val url = URL("https://api.vvpn.space/api/license/device/$deviceId")
+                        val connection = url.openConnection() as HttpsURLConnection
+                        connection.requestMethod = "GET"
+                        connection.connectTimeout = 30000 // Increased timeout for release builds
+                        connection.readTimeout = 30000
+
+                        val responseCode = connection.responseCode
+                        Log.d("MainActivity", "License API response code: $responseCode")
+
+                        if (responseCode == 200) {
+                            val response = connection.inputStream.bufferedReader().readText()
+                            Log.d("MainActivity", "License API response: $response")
+                            val json = JSONObject(response)
+
+                            if (json.getBoolean("success")) {
+                                val licenses = json.getJSONArray("licenses")
+                                Log.d("MainActivity", "Found ${licenses.length()} license(s) for device")
+                                var foundUserLicense = false
+
+                                // Filter licenses to find one matching the current user's email
+                                for (i in 0 until licenses.length()) {
+                                    val license = licenses.getJSONObject(i)
+                                    val userEmail = license.getString("user_email")
+                                    Log.d("MainActivity", "Checking license $i: user_email=$userEmail")
+
+                                    if (userEmail.equals(currentUserEmail, ignoreCase = true)) {
+                                        // Found a license for the current user
+                                        val licenseKey = license.getString("license_key")
+                                        val planId = license.getString("plan_id")
+                                        val expiryDate = license.getString("expiry_date")
+
+                                        Log.d("MainActivity", "✓ MATCH! Saving license for $userEmail")
+                                        licenseManager.saveLicense(licenseKey, deviceId, expiryDate, planId, userEmail)
+                                        foundUserLicense = true
+                                        break
+                                    } else {
+                                        Log.d("MainActivity", "✗ No match: '$userEmail' != '$currentUserEmail'")
+                                    }
+                                }
+
+                                if (!foundUserLicense) {
+                                    // No license found for current user, clear any cached license
+                                    Log.d("MainActivity", "No license found for user: $currentUserEmail, clearing cache")
+                                    licenseManager.clearLicense()
+                                }
+                                true // Success
+                            } else {
+                                Log.e("MainActivity", "API returned success=false")
+                                false
+                            }
+                        } else {
+                            val errorBody = connection.errorStream?.bufferedReader()?.readText() ?: "No error body"
+                            Log.e("MainActivity", "Failed to fetch licenses: HTTP $responseCode - $errorBody")
+                            false
                         }
+                    } catch (e: Exception) {
+                        Log.e("MainActivity", "Failed to fetch licenses: ${e.message}", e)
+                        e.printStackTrace()
+                        false
                     }
                 }
-                
-                runOnUiThread { checkLicenseAndProceed() }
+
+                // Always proceed after fetching (success or failure)
+                checkLicenseAndProceed()
             } catch (e: Exception) {
-                Log.e("MainActivity", "Failed to fetch licenses: ${e.message}")
-                runOnUiThread { checkLicenseAndProceed() }
+                Log.e("MainActivity", "Coroutine error: ${e.message}", e)
+                e.printStackTrace()
+                checkLicenseAndProceed()
             }
-        }.start()
+        }
     }
     
     private fun checkLicenseAndProceed() {

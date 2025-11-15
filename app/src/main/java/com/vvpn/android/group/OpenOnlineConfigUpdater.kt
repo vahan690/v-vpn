@@ -26,8 +26,8 @@ import com.vvpn.android.database.GroupManager
 import com.vvpn.android.database.ProxyGroup
 import com.vvpn.android.database.SubscriptionBean
 import com.vvpn.android.fmt.AbstractBean
-import com.vvpn.android.fmt.shadowsocks.ShadowsocksBean
-import com.vvpn.android.fmt.shadowsocks.pluginToLocal
+// import com.vvpn.android.fmt.shadowsocks.ShadowsocksBean
+// import com.vvpn.android.fmt.shadowsocks.pluginToLocal
 import com.vvpn.android.ktx.Logs
 import com.vvpn.android.ktx.addPathSegments
 import com.vvpn.android.ktx.applyDefaultValues
@@ -44,7 +44,9 @@ import org.json.JSONObject
 object OpenOnlineConfigUpdater : GroupUpdater() {
 
     const val OOC_VERSION = 1
-    val OOC_PROTOCOLS = listOf("shadowsocks")
+    // Note: This updater previously supported shadowsocks which has been removed.
+    // OOC_PROTOCOLS is now empty as shadowsocks is no longer supported.
+    val OOC_PROTOCOLS = listOf<String>()
 
     override suspend fun doUpdate(
         proxyGroup: ProxyGroup,
@@ -126,6 +128,10 @@ object OpenOnlineConfigUpdater : GroupUpdater() {
 
         val proxies = mutableListOf<AbstractBean>()
 
+        // Protocol parsing has been disabled as shadowsocks is no longer supported
+        // Previously supported: shadowsocks
+        // Currently no protocols are supported by this updater
+        /*
         for (protocol in protocols) {
             val profilesInProtocol =
                 oocResponse.getJSONArray(protocol).filterIsInstance<JSONObject>()
@@ -152,6 +158,7 @@ object OpenOnlineConfigUpdater : GroupUpdater() {
                 }
             }
         }
+        */
 
         tidyProxies(proxies, subscription, proxyGroup, userInterface, byUser)
     }

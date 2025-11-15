@@ -10,6 +10,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.vvpn.android.R
+import com.vvpn.android.ui.MainActivity
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -99,9 +100,18 @@ class LoginActivity : AppCompatActivity() {
 
                 if (response.success) {
                     Log.d("LoginActivity", "Login successful for ${response.email}")
-                    
-                    // Check for existing license on this device
-                    checkExistingLicense()
+
+                    // Clear any cached license from previous user
+                    val licenseManager = LicenseManager(this@LoginActivity)
+                    licenseManager.clearLicense()
+                    Log.d("LoginActivity", "Cleared cached license, launching MainActivity to fetch fresh data")
+
+                    // Launch MainActivity with FROM_LOGIN flag
+                    val intent = android.content.Intent(this@LoginActivity, MainActivity::class.java)
+                    intent.putExtra("FROM_LOGIN", true)
+                    intent.flags = android.content.Intent.FLAG_ACTIVITY_NEW_TASK or android.content.Intent.FLAG_ACTIVITY_CLEAR_TASK
+                    startActivity(intent)
+                    finish()
                 } else {
                     showError(response.message ?: "Login failed")
                 }
@@ -112,56 +122,6 @@ class LoginActivity : AppCompatActivity() {
                 forgotPasswordButton.isEnabled = true
                 showError("Network error: ${e.message}")
                 Log.e("LoginActivity", "Login error", e)
-            }
-        }
-    }
-
-    private fun checkExistingLicense() {
-        CoroutineScope(Dispatchers.Main).launch {
-            try {
-                val licenseManager = LicenseManager(this@LoginActivity)
-                val existingLicense = licenseManager.getLicenseInfo()
-                val licenseKey = existingLicense["license_key"] ?: ""
-
-                if (licenseKey.isNotEmpty()) {
-                    // Verify existing license with backend
-                    val deviceId = paymentManager.getDeviceId()
-                    val verifyResponse = withContext(Dispatchers.IO) {
-                        paymentManager.verifyLicense(licenseKey, deviceId)
-                    }
-
-                    if (verifyResponse.success && verifyResponse.isValid) {
-                        Log.d("LoginActivity", "Existing license is valid")
-                        
-                        // Update license info if needed
-                        if (verifyResponse.expiryDate != null && verifyResponse.planId != null) {
-                            licenseManager.saveLicense(
-                                licenseKey,
-                                deviceId,
-                                verifyResponse.expiryDate,
-                                verifyResponse.planId,
-                                authManager.getUserEmail()
-                            )
-                        }
-                        
-                        setResult(RESULT_OK)
-                        finish()
-                        return@launch
-                    } else {
-                        Log.d("LoginActivity", "Existing license is invalid: ${verifyResponse.message}")
-                    }
-                }
-
-                // No valid license found, return to main screen
-                Log.d("LoginActivity", "No valid license found")
-                setResult(RESULT_OK)
-                finish()
-
-            } catch (e: Exception) {
-                Log.e("LoginActivity", "Error checking license", e)
-                // Still return OK since login was successful
-                setResult(RESULT_OK)
-                finish()
             }
         }
     }

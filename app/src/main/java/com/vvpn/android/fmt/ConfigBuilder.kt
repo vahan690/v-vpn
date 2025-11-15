@@ -37,8 +37,6 @@ import com.vvpn.android.fmt.SingBoxOptions.RouteOptions
 import com.vvpn.android.fmt.SingBoxOptions.Rule_Default
 import com.vvpn.android.fmt.SingBoxOptions.Rule_Logical
 import com.vvpn.android.fmt.SingBoxOptions.User
-import com.vvpn.android.fmt.anytls.AnyTLSBean
-import com.vvpn.android.fmt.anytls.buildSingBoxOutboundAnyTLSBean
 import com.vvpn.android.fmt.config.ConfigBean
 import com.vvpn.android.fmt.direct.DirectBean
 import com.vvpn.android.fmt.direct.buildSingBoxOutboundDirectBean
@@ -47,21 +45,6 @@ import com.vvpn.android.fmt.hysteria.buildSingBoxOutboundHysteriaBean
 import com.vvpn.android.fmt.internal.ChainBean
 import com.vvpn.android.fmt.internal.ProxySetBean
 import com.vvpn.android.fmt.internal.buildSingBoxOutboundProxySetBean
-import com.vvpn.android.fmt.juicity.JuicityBean
-import com.vvpn.android.fmt.shadowsocks.ShadowsocksBean
-import com.vvpn.android.fmt.shadowsocks.buildSingBoxOutboundShadowsocksBean
-import com.vvpn.android.fmt.shadowtls.ShadowTLSBean
-import com.vvpn.android.fmt.shadowtls.buildSingBoxOutboundShadowTLSBean
-import com.vvpn.android.fmt.socks.SOCKSBean
-import com.vvpn.android.fmt.socks.buildSingBoxOutboundSocksBean
-import com.vvpn.android.fmt.ssh.SSHBean
-import com.vvpn.android.fmt.ssh.buildSingBoxOutboundSSHBean
-import com.vvpn.android.fmt.tuic.TuicBean
-import com.vvpn.android.fmt.tuic.buildSingBoxOutboundTuicBean
-import com.vvpn.android.fmt.v2ray.StandardV2RayBean
-import com.vvpn.android.fmt.v2ray.buildSingBoxOutboundStandardV2RayBean
-import com.vvpn.android.fmt.wireguard.WireGuardBean
-import com.vvpn.android.fmt.wireguard.buildSingBoxEndpointWireGuardBean
 import com.vvpn.android.ktx.JSONMap
 import com.vvpn.android.ktx.asMap
 import com.vvpn.android.ktx.blankAsNull
@@ -228,7 +211,6 @@ fun buildConfig(
     val networkStrategy = DataStore.networkStrategy
     val networkInterfaceStrategy = DataStore.networkInterfaceType
     val networkPreferredInterfaces = DataStore.networkPreferredInterfaces.toList()
-    var hasJuicity = false
     val defaultStrategy = DataStore.networkStrategy.blankAsNull()
     lateinit var mainTag: String
 
@@ -421,32 +403,13 @@ fun buildConfig(
                         server = LOCALHOST4
                         server_port = localPort
                     }.asMap()
-                    if (bean is JuicityBean) hasJuicity = true
                 } else { // internal outbound
                     currentOutbound = when (bean) {
                         is ConfigBean -> bean.config.toJsonMap()
 
-                        is ShadowTLSBean -> // before StandardV2RayBean
-                            buildSingBoxOutboundShadowTLSBean(bean).asMap()
-
-                        is StandardV2RayBean -> // http/trojan/vmess/vless
-                            buildSingBoxOutboundStandardV2RayBean(bean).asMap()
-
                         is HysteriaBean -> buildSingBoxOutboundHysteriaBean(bean).asMap()
 
-                        is TuicBean -> buildSingBoxOutboundTuicBean(bean).asMap()
-
-                        is SOCKSBean -> buildSingBoxOutboundSocksBean(bean).asMap()
-
-                        is ShadowsocksBean -> buildSingBoxOutboundShadowsocksBean(bean).asMap()
-
-                        is WireGuardBean -> buildSingBoxEndpointWireGuardBean(bean).asMap()
-
-                        is SSHBean -> buildSingBoxOutboundSSHBean(bean).asMap()
-
                         is DirectBean -> buildSingBoxOutboundDirectBean(bean).asMap()
-
-                        is AnyTLSBean -> buildSingBoxOutboundAnyTLSBean(bean).asMap()
 
                         is ProxySetBean -> {
                             val tags = proxySetChildren!!.toList().filterNot { it == tagOut }
@@ -980,13 +943,6 @@ fun buildConfig(
                     server = TAG_DNS_DIRECT
                 })
             }
-
-            // https://github.com/juicity/juicity/issues/140
-            // FIXME: improve this workaround or remove it when juicity fix it.
-            if (hasJuicity && useFakeDns) route.rules.add(0, Rule_Default().apply {
-                action = SingBoxOptions.ACTION_RESOLVE
-                network = listOf(SingBoxOptions.NetworkUDP)
-            })
 
             route.final_ = mainTag
         }

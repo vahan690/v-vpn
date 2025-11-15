@@ -70,7 +70,7 @@
             android:id="@+id/monthlyButton"
             android:layout_width="match_parent"
             android:layout_height="64dp"
-            android:text="Monthly - $5 USDT"
+            android:text="Monthly - $2 USDT"
             android:textSize="18sp"
             android:textColor="@android:color/white"
             android:backgroundTint="#6200EA"
@@ -80,7 +80,7 @@
             android:id="@+id/yearlyButton"
             android:layout_width="match_parent"
             android:layout_height="64dp"
-            android:text="Yearly - $50 USDT"
+            android:text="Yearly - $20 USDT"
             android:textSize="18sp"
             android:textColor="@android:color/white"
             android:backgroundTint="#6200EA"
@@ -116,6 +116,18 @@
             android:gravity="center"
             android:visibility="gone"
             android:padding="8dp" />
+
+        <!-- Logout / Switch Account Button -->
+        <Button
+            android:id="@+id/logoutButton"
+            android:layout_width="match_parent"
+            android:layout_height="48dp"
+            android:text="Switch Account"
+            android:textSize="14sp"
+            android:textColor="#757575"
+            android:backgroundTint="@android:color/transparent"
+            android:background="?attr/selectableItemBackground"
+            android:layout_marginTop="24dp" />
 
     </LinearLayout>
 

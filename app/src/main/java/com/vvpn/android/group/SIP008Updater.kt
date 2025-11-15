@@ -26,7 +26,7 @@ import com.vvpn.android.database.GroupManager
 import com.vvpn.android.database.ProxyGroup
 import com.vvpn.android.database.SubscriptionBean
 import com.vvpn.android.fmt.AbstractBean
-import com.vvpn.android.fmt.shadowsocks.parseShadowsocks
+// import com.vvpn.android.fmt.shadowsocks.parseShadowsocks
 import com.vvpn.android.ktx.Logs
 import com.vvpn.android.ktx.applyDefaultValues
 import com.vvpn.android.ktx.filterIsInstance
@@ -78,10 +78,14 @@ object SIP008Updater : GroupUpdater() {
         val servers = sip008Response.getJSONArray("servers").filterIsInstance<JSONObject>()
 
         val proxies = mutableListOf<AbstractBean>()
+        // Shadowsocks parsing removed (deleted protocol)
+        // SIP008 was designed specifically for Shadowsocks which is no longer supported
+        /*
         for (profile in servers) {
             val bean = profile.parseShadowsocks()
             proxies.add(bean.applyDefaultValues())
         }
+        */
 
         tidyProxies(proxies, subscription, proxyGroup, userInterface, byUser)
     }
