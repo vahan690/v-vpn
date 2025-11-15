@@ -83,9 +83,12 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import java.io.File
 import java.security.MessageDigest
-import java.net.URL
-import javax.net.ssl.HttpsURLConnection
+import okhttp3.Request
 import org.json.JSONObject
+import com.vvpn.android.payment.SecureHttpClient
+import com.vvpn.android.security.SecurityManager
+import com.vvpn.android.security.RootDetector
+import com.vvpn.android.security.TamperDetector
 
 class MainActivity : ThemedActivity(),
     SagerConnection.Callback,
@@ -120,6 +123,9 @@ class MainActivity : ThemedActivity(),
         // Initialize managers
         licenseManager = LicenseManager(this)
         authManager = AuthManager(this)
+
+        // SECURITY CHECK: Perform root and tamper detection
+        performSecurityCheck()
 
         // Handle deep link FIRST before auth check
         handleDeepLink(intent)
@@ -166,6 +172,45 @@ class MainActivity : ThemedActivity(),
 
         Log.d("MainActivity", "Valid license found, initializing app")
         initializeApp(savedInstanceState)
+    }
+
+    private fun performSecurityCheck() {
+        // Set security policy
+        // WARNING mode: logs threats but allows app to continue
+        // Change to STRICT for production if you want to block rooted/tampered devices
+        SecurityManager.setPolicy(SecurityManager.Policy.WARNING)
+
+        val securityStatus = SecurityManager.performSecurityCheck(this)
+
+        if (!securityStatus.isSecure) {
+            Log.w("MainActivity", "=== SECURITY THREATS DETECTED ===")
+            Log.w("MainActivity", securityStatus.getThreatSummary())
+
+            // If policy is STRICT and should block, show dialog and exit
+            if (securityStatus.shouldBlock) {
+                MaterialAlertDialogBuilder(this)
+                    .setTitle("Security Warning")
+                    .setMessage(
+                        "This app cannot run on this device due to security concerns:\n\n" +
+                        securityStatus.getThreatSummary() +
+                        "\n\nPlease use an official, non-rooted device."
+                    )
+                    .setPositiveButton("Exit") { _, _ ->
+                        finish()
+                    }
+                    .setCancelable(false)
+                    .show()
+            } else {
+                // WARNING mode: Just log, don't block
+                Log.w("MainActivity", "Security policy is ${securityStatus.policy}, allowing app to continue")
+            }
+        } else {
+            Log.i("MainActivity", "Security check passed")
+        }
+
+        // Log signature for reference (helpful for getting your release certificate hash)
+        val signatureSHA256 = TamperDetector.getAppSignatureSHA256(this)
+        Log.i("MainActivity", "App signature SHA-256: $signatureSHA256")
     }
 
     private fun initializeApp(savedInstanceState: Bundle?) {
@@ -241,7 +286,11 @@ class MainActivity : ThemedActivity(),
         connection.connect(this, this)
         DataStore.configurationStore.registerChangeListener(this)
         GroupManager.userInterface = GroupInterfaceAdapter(this)
-        runOnDefaultDispatcher { ProfileManager.ensureDefaultProfile() }
+
+        // Get user's JWT token to fetch server config from API
+        val authManager = com.vvpn.android.payment.AuthManager(this)
+        val userToken = authManager.getToken()
+        runOnDefaultDispatcher { ProfileManager.ensureDefaultProfile(userToken) }
 
         when (intent.action) {
             Intent.ACTION_VIEW -> onNewIntent(intent)
@@ -857,20 +906,20 @@ class MainActivity : ThemedActivity(),
             try {
                 val result = withContext(Dispatchers.IO) {
                     try {
-                        // Fetch all licenses for this device
-                        val url = URL("https://api.vvpn.space/api/license/device/$deviceId")
-                        val connection = url.openConnection() as HttpsURLConnection
-                        connection.requestMethod = "GET"
-                        connection.connectTimeout = 30000 // Increased timeout for release builds
-                        connection.readTimeout = 30000
+                        // Fetch all licenses for this device using secure HTTP client
+                        val request = Request.Builder()
+                            .url("https://api.vvpn.space/api/license/device/$deviceId")
+                            .get()
+                            .build()
 
-                        val responseCode = connection.responseCode
-                        Log.d("MainActivity", "License API response code: $responseCode")
+                        val response = SecureHttpClient.client.newCall(request).execute()
+                        val responseBody = response.body?.string() ?: ""
 
-                        if (responseCode == 200) {
-                            val response = connection.inputStream.bufferedReader().readText()
-                            Log.d("MainActivity", "License API response: $response")
-                            val json = JSONObject(response)
+                        Log.d("MainActivity", "License API response code: ${response.code}")
+
+                        if (response.isSuccessful) {
+                            Log.d("MainActivity", "License API response: $responseBody")
+                            val json = JSONObject(responseBody)
 
                             if (json.getBoolean("success")) {
                                 val licenses = json.getJSONArray("licenses")
@@ -909,8 +958,7 @@ class MainActivity : ThemedActivity(),
                                 false
                             }
                         } else {
-                            val errorBody = connection.errorStream?.bufferedReader()?.readText() ?: "No error body"
-                            Log.e("MainActivity", "Failed to fetch licenses: HTTP $responseCode - $errorBody")
+                            Log.e("MainActivity", "Failed to fetch licenses: HTTP ${response.code} - $responseBody")
                             false
                         }
                     } catch (e: Exception) {

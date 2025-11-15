@@ -88,18 +88,54 @@ object ProfileManager {
         return profile
     }
 
-    suspend fun createDefaultHysteria2Profile(groupId: Long): ProxyEntity {
+    suspend fun createDefaultHysteria2Profile(groupId: Long, token: String? = null): ProxyEntity {
         android.util.Log.d("ProfileManager", "Creating Hysteria2 profile for group: $groupId")
+
+        // Fetch server config from API if token is provided
+        val serverConfig = if (token != null) {
+            try {
+                val paymentManager = com.vvpn.android.payment.PaymentManager(app)
+                val result = paymentManager.fetchServerConfig(token)
+                if (result.isSuccess) {
+                    android.util.Log.d("ProfileManager", "Fetched server config from API")
+                    result.getOrNull()
+                } else {
+                    android.util.Log.w("ProfileManager", "Failed to fetch server config, using fallback")
+                    null
+                }
+            } catch (e: Exception) {
+                android.util.Log.e("ProfileManager", "Error fetching server config: ${e.message}", e)
+                null
+            }
+        } else {
+            android.util.Log.w("ProfileManager", "No token provided, using fallback config")
+            null
+        }
 
         val bean = com.vvpn.android.fmt.hysteria.HysteriaBean().apply {
             protocolVersion = com.vvpn.android.fmt.hysteria.HysteriaBean.PROTOCOL_VERSION_2
             name = "Unlock the World"
-            serverAddress = "62.171.179.248"
-            serverPorts = "22153"
-            authPayload = "KKX7uSdSG8K3g54d5fh4"
-            obfuscation = "IranSafeNet2025"
-            allowInsecure = true
-            sni = ""
+
+            // Use server config from API if available, otherwise use fallback
+            if (serverConfig != null) {
+                serverAddress = serverConfig.serverAddress
+                serverPorts = serverConfig.serverPort
+                authPayload = serverConfig.authPayload
+                obfuscation = serverConfig.obfuscation
+                allowInsecure = serverConfig.allowInsecure
+                sni = serverConfig.sni ?: ""
+                android.util.Log.d("ProfileManager", "Using server config from API")
+            } else {
+                // TEMPORARY FALLBACK - Still using hardcoded values as backup
+                // This should be removed once backend API is deployed
+                serverAddress = "62.171.179.248"
+                serverPorts = "22153"
+                authPayload = "KKX7uSdSG8K3g54d5fh4"
+                obfuscation = "IranSafeNet2025"
+                allowInsecure = true
+                sni = ""
+                android.util.Log.w("ProfileManager", "Using fallback hardcoded config - UPDATE ASAP!")
+            }
         }
 
         android.util.Log.d("ProfileManager", "Bean created with name: ${bean.name}")
@@ -110,7 +146,7 @@ object ProfileManager {
     }
 
 // Add this function to check and create default profile on first run
-suspend fun ensureDefaultProfile() {
+suspend fun ensureDefaultProfile(token: String? = null) {
     try {
         val allProfiles = SagerDatabase.proxyDao.getAll()
         android.util.Log.d("ProfileManager", "Total profiles found: ${allProfiles.size}")
@@ -124,7 +160,7 @@ suspend fun ensureDefaultProfile() {
             android.util.Log.d("ProfileManager", "Groups found: ${groups.size}")
             val defaultGroupId = groups.firstOrNull()?.id ?: 1L
             android.util.Log.d("ProfileManager", "Using group ID: $defaultGroupId")
-            createDefaultHysteria2Profile(defaultGroupId)
+            createDefaultHysteria2Profile(defaultGroupId, token)
             android.util.Log.d("ProfileManager", "Unlock the World profile created successfully")
         }
     } catch (e: Exception) {

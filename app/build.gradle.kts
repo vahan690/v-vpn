@@ -48,15 +48,15 @@ android {
     buildTypes {
         getByName("release") {
             signingConfig = signingConfigs.getByName("release")
-            // Temporarily disable ProGuard for debugging
-            isMinifyEnabled = false
-            isShrinkResources = false
-            // proguardFiles(
-            //     getDefaultProguardFile("proguard-android-optimize.txt"),
-            //     "proguard-rules.pro"
-            // )
+            // ENABLE ProGuard/R8 obfuscation for security
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
-        
+
         getByName("debug") {
             isMinifyEnabled = false
             isShrinkResources = false

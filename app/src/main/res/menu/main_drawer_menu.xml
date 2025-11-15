@@ -55,12 +55,12 @@
 
     <item
         android:id="@+id/nav_license"
-        android:icon="@android:drawable/ic_menu_info_details"
+        android:icon="@drawable/ic_baseline_info_24"
         android:title="License" />
 
     <item
         android:id="@+id/nav_logout"
-        android:icon="@android:drawable/ic_lock_power_off"
+        android:icon="@drawable/ic_baseline_lock_24"
         android:title="Logout" />
 
 </menu>

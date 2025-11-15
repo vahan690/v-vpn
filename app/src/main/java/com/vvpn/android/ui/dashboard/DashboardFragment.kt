@@ -29,8 +29,8 @@ import com.vvpn.android.ktx.setOnFocusCancel
 import kotlinx.coroutines.launch
 
 class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard),
-    Toolbar.OnMenuItemClickListener,
-    SearchView.OnQueryTextListener {
+    Toolbar.OnMenuItemClickListener {
+    // SearchView.OnQueryTextListener removed
 
     companion object {
         const val POSITION_STATUS = 0
@@ -42,10 +42,10 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard),
     private val viewModel by viewModels<DashboardFragmentViewModel>()
     private lateinit var adapter: TrafficAdapter
 
-    private val menuSearch by lazy { toolbar.menu.findItem(R.id.action_traffic_search) }
+    // private val menuSearch by lazy { toolbar.menu.findItem(R.id.action_traffic_search) }
     private val menuPause by lazy { toolbar.menu.findItem(R.id.action_traffic_pause) }
-    private val actionSort by lazy { toolbar.menu.findItem(R.id.action_sort) }
-    private val actionSortMethod by lazy { toolbar.menu.findItem(R.id.action_sort_method) }
+    // private val actionSort by lazy { toolbar.menu.findItem(R.id.action_sort) }
+    // private val actionSortMethod by lazy { toolbar.menu.findItem(R.id.action_sort_method) }
 
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
@@ -92,6 +92,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard),
             }
         }.attach()
 
+        /*
         if (DataStore.trafficDescending) {
             toolbar.menu.findItem(R.id.action_sort_descending)!!.isChecked = true
         } else {
@@ -126,12 +127,13 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard),
             setOnFocusCancel()
             isVisible = true
         }
+        */
 
         fun updateMenu(isConnectionUI: Boolean) {
-            menuSearch.isVisible = isConnectionUI
+            // menuSearch.isVisible = isConnectionUI
             menuPause.isVisible = isConnectionUI
-            actionSort.isVisible = isConnectionUI
-            actionSortMethod.isVisible = isConnectionUI
+            // actionSort.isVisible = isConnectionUI
+            // actionSortMethod.isVisible = isConnectionUI
         }
         binding.dashboardTab.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {
@@ -189,8 +191,9 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard),
                 true
             }
 
-            // Sort
+            // Sort - Removed
 
+            /*
             R.id.action_sort_ascending -> {
                 item.isChecked = true
                 viewModel.setSortDescending(false)
@@ -245,6 +248,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard),
                 viewModel.setSortMode(TrafficSortMode.MATCHED_RULE)
                 true
             }
+            */
 
             else -> false
         }
@@ -269,6 +273,7 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard),
         }
     }
 
+    /*
     override fun onQueryTextSubmit(query: String?): Boolean {
         viewModel.setSearchQuery(query)
         return false
@@ -278,4 +283,5 @@ class DashboardFragment : ToolbarFragment(R.layout.layout_dashboard),
         viewModel.setSearchQuery(query)
         return false
     }
+    */
 }

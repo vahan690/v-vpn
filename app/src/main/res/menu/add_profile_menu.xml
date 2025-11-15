@@ -1,11 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <!-- Search button removed -->
+    <!--
     <item
         android:id="@+id/action_search"
         android:title="@android:string/search_go"
         app:actionViewClass="androidx.appcompat.widget.SearchView"
         app:showAsAction="always" />
+    -->
 
 <!--
     <item
@@ -94,6 +98,8 @@
     </item>
 -->
 
+    <!-- 3-dot menu items removed -->
+    <!--
     <item
         android:id="@+id/action_clear_traffic_statistics"
         android:title="@string/clear_traffic_statistics"
@@ -145,5 +151,6 @@
             </group>
         </menu>
     </item>
+    -->
 
 </menu>

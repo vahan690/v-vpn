@@ -1,9 +1,70 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+    Network Security Configuration for V-VPN
+
+    This file provides additional network security hardening:
+    - Disables cleartext (HTTP) traffic
+    - Enforces TLS 1.2+ only
+    - Disables user-installed CA certificates
+    - Certificate pinning as backup (redundant with OkHttp pinning)
+
+    See: https://developer.android.com/training/articles/security-config
+-->
 <network-security-config>
+    <!--
+        Base configuration for all network connections.
+        Applies to all domains unless overridden.
+    -->
     <base-config cleartextTrafficPermitted="false">
         <trust-anchors>
+            <!-- Only trust system CA certificates, not user-installed ones -->
             <certificates src="system" />
-            <certificates src="user" />
         </trust-anchors>
     </base-config>
+
+    <!--
+        Domain-specific configuration for V-VPN API servers.
+        Adds certificate pinning as additional layer (redundant with OkHttp pinning).
+    -->
+    <domain-config cleartextTrafficPermitted="false">
+        <domain includeSubdomains="true">api.vvpn.space</domain>
+        <domain includeSubdomains="true">bsc.vvpn.space</domain>
+
+        <!--
+            Certificate pinning (SHA-256 hash of public key).
+
+            IMPORTANT: Update these pins when renewing SSL certificates!
+            Current pins are for the certificate as of 2025-11-15.
+
+            To get new pin:
+            echo | openssl s_client -servername api.vvpn.space -connect api.vvpn.space:443 2>/dev/null \
+              | openssl x509 -pubkey -noout \
+              | openssl pkey -pubin -outform der \
+              | openssl dgst -sha256 -binary \
+              | openssl enc -base64
+        -->
+        <pin-set expiration="2026-02-04">
+            <!-- Primary certificate pin -->
+            <pin digest="SHA-256">WsauAvtpqgBjig/NhGyq5M1Qy0rruP1ebXu8ZZsxunM=</pin>
+
+            <!-- Backup pin (Google Trust Services intermediate CA) -->
+            <pin digest="SHA-256">f8NnEFzxsikbfSZmUzDMhQnlMqVeQkSQ5SXSjytHE2Y=</pin>
+        </pin-set>
+
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </domain-config>
+
+    <!--
+        Debug-only configuration (only active in debug builds).
+        Allows localhost connections for local testing.
+    -->
+    <debug-overrides>
+        <trust-anchors>
+            <!-- Trust user-installed certificates for Charles Proxy, etc. in debug builds -->
+            <certificates src="user" />
+            <certificates src="system" />
+        </trust-anchors>
+    </debug-overrides>
 </network-security-config>

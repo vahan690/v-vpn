@@ -184,6 +184,8 @@ class ConfigurationFragment @JvmOverloads constructor(
             }
         }
         val activity = activity
+        // Search view removed from menu
+        /*
         val searchView = toolbar.findViewById<SearchView>(R.id.action_search)
         if (searchView != null) {
             searchView.setOnQueryTextListener(this)
@@ -192,6 +194,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 activity?.onBackPressedCallback?.isEnabled = hasFocus
             }
         }
+        */
 
         groupPager = view.findViewById(R.id.group_pager)
 
@@ -214,7 +217,8 @@ class ConfigurationFragment @JvmOverloads constructor(
         groupPager.adapter = adapter
         groupPager.offscreenPageLimit = 2
 
-        // Clean up search status when shifting tab.
+        // Clean up search status when shifting tab - removed (search removed)
+        /*
         tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
             override fun onTabSelected(tab: TabLayout.Tab) {}
 
@@ -225,6 +229,7 @@ class ConfigurationFragment @JvmOverloads constructor(
             override fun onTabReselected(tab: TabLayout.Tab) {}
 
         })
+        */
 
         TabLayoutMediator(tabLayout, groupPager) { tab, position ->
             if (adapter.groupList.size > position) {
@@ -911,10 +916,13 @@ class ConfigurationFragment @JvmOverloads constructor(
             } else if (!::configurationListView.isInitialized) {
                 onViewCreated(requireView(), null)
             }
-            checkOrderMenu()
+            // Order menu removed
+            // checkOrderMenu()
             configurationListView.requestFocus()
         }
 
+        // Order menu removed from add_profile_menu.xml
+        /*
         fun checkOrderMenu() {
             if (select) return
 
@@ -961,6 +969,7 @@ class ConfigurationFragment @JvmOverloads constructor(
                 true
             }
         }
+        */
 
         override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
             if (!::proxyGroup.isInitialized) return

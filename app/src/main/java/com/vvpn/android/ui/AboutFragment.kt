@@ -61,6 +61,8 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
             insets
         }
 
+        // RecyclerView removed from layout
+        /*
         binding.aboutRecycler.adapter = AboutAdapter().also {
             adapter = it
         }
@@ -70,6 +72,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                 viewModel.uiState.collect(::handleUiState)
             }
         }
+        */
 
 //        binding.license.text = LICENSE
 //        Linkify.addLinks(binding.license, Linkify.EMAIL_ADDRESSES or Linkify.WEB_URLS)

@@ -5,12 +5,10 @@ import android.content.SharedPreferences
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 
 class AuthManager(private val context: Context) {
 
@@ -93,33 +91,25 @@ class AuthManager(private val context: Context) {
     // Register new user
     suspend fun register(email: String, password: String): AuthResponse = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$BASE_URL/api/auth/register")
-            val connection = url.openConnection() as HttpURLConnection
-
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.doOutput = true
-            connection.connectTimeout = 60000
-            connection.readTimeout = 60000
-
             val jsonBody = JSONObject().apply {
                 put("email", email)
                 put("password", password)
             }
 
-            OutputStreamWriter(connection.outputStream).use { writer ->
-                writer.write(jsonBody.toString())
-                writer.flush()
-            }
+            val requestBody = jsonBody.toString()
+                .toRequestBody("application/json".toMediaType())
 
-            val responseCode = connection.responseCode
-            val responseBody = BufferedReader(InputStreamReader(
-                if (responseCode in 200..201) connection.inputStream else connection.errorStream
-            )).use { it.readText() }
+            val request = Request.Builder()
+                .url("$BASE_URL/api/auth/register")
+                .post(requestBody)
+                .build()
 
-            Log.d(TAG, "Register response ($responseCode): $responseBody")
+            val response = SecureHttpClient.client.newCall(request).execute()
+            val responseBody = response.body?.string() ?: ""
 
-            if (responseCode in 200..201) {
+            Log.d(TAG, "Register response (${response.code}): $responseBody")
+
+            if (response.code in 200..201) {
                 val json = JSONObject(responseBody)
                 val token = json.getString("token")
                 val user = json.getJSONObject("user")
@@ -161,33 +151,25 @@ class AuthManager(private val context: Context) {
     // Login user
     suspend fun login(email: String, password: String): AuthResponse = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$BASE_URL/api/auth/login")
-            val connection = url.openConnection() as HttpURLConnection
-
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.doOutput = true
-            connection.connectTimeout = 60000
-            connection.readTimeout = 60000
-
             val jsonBody = JSONObject().apply {
                 put("email", email)
                 put("password", password)
             }
 
-            OutputStreamWriter(connection.outputStream).use { writer ->
-                writer.write(jsonBody.toString())
-                writer.flush()
-            }
+            val requestBody = jsonBody.toString()
+                .toRequestBody("application/json".toMediaType())
 
-            val responseCode = connection.responseCode
-            val responseBody = BufferedReader(InputStreamReader(
-                if (responseCode == 200) connection.inputStream else connection.errorStream
-            )).use { it.readText() }
+            val request = Request.Builder()
+                .url("$BASE_URL/api/auth/login")
+                .post(requestBody)
+                .build()
 
-            Log.d(TAG, "Login response ($responseCode): $responseBody")
+            val response = SecureHttpClient.client.newCall(request).execute()
+            val responseBody = response.body?.string() ?: ""
 
-            if (responseCode == 200) {
+            Log.d(TAG, "Login response (${response.code}): $responseBody")
+
+            if (response.isSuccessful) {
                 val json = JSONObject(responseBody)
                 val token = json.getString("token")
                 val user = json.getJSONObject("user")

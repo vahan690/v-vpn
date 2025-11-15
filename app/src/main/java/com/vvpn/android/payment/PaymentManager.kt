@@ -4,12 +4,10 @@ import android.content.Context
 import android.util.Log
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
-import java.net.HttpURLConnection
-import java.net.URL
 
 class PaymentManager(private val context: Context) {
 
@@ -46,40 +44,79 @@ class PaymentManager(private val context: Context) {
         val expiryDate: String?
     )
 
+    data class ServerConfigResponse(
+        val success: Boolean,
+        val serverAddress: String,
+        val serverPort: String,
+        val authPayload: String,
+        val obfuscation: String,
+        val sni: String?,
+        val allowInsecure: Boolean,
+        val message: String?
+    )
+
+    // Fetch VPN server configuration from backend
+    suspend fun fetchServerConfig(token: String): Result<ServerConfigResponse> = withContext(Dispatchers.IO) {
+        try {
+            val request = Request.Builder()
+                .url("$LICENSE_API_URL/api/server/config")
+                .header("Authorization", "Bearer $token")
+                .get()
+                .build()
+
+            val response = SecureHttpClient.client.newCall(request).execute()
+            val responseBody = response.body?.string() ?: ""
+
+            Log.d(TAG, "Fetch server config response (${response.code}): $responseBody")
+
+            if (response.isSuccessful) {
+                val json = JSONObject(responseBody)
+                Result.success(ServerConfigResponse(
+                    success = json.getBoolean("success"),
+                    serverAddress = json.getString("serverAddress"),
+                    serverPort = json.getString("serverPort"),
+                    authPayload = json.getString("authPayload"),
+                    obfuscation = json.getString("obfuscation"),
+                    sni = json.optString("sni", ""),
+                    allowInsecure = json.optBoolean("allowInsecure", true),
+                    message = null
+                ))
+            } else {
+                val json = JSONObject(responseBody)
+                Result.failure(Exception(json.optString("error", "Failed to fetch server config")))
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Error fetching server config: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
+
     // Create BSC payment
     suspend fun createBscPayment(planId: String, deviceId: String, token: String): Result<PaymentOrder> = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$BSC_BASE_URL/api/create-order")
-            val connection = url.openConnection() as HttpURLConnection
-
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("Authorization", "Bearer $token")
-            connection.doOutput = true
-            connection.connectTimeout = 60000
-            connection.readTimeout = 60000
-
             val jsonBody = JSONObject().apply {
                 put("deviceId", deviceId)
                 put("planId", planId)
             }
 
-            OutputStreamWriter(connection.outputStream).use { writer ->
-                writer.write(jsonBody.toString())
-                writer.flush()
-            }
+            val requestBody = jsonBody.toString()
+                .toRequestBody("application/json".toMediaType())
 
-            val responseCode = connection.responseCode
-            val responseBody = BufferedReader(InputStreamReader(
-                if (responseCode == 200) connection.inputStream else connection.errorStream
-            )).use { it.readText() }
+            val request = Request.Builder()
+                .url("$BSC_BASE_URL/api/create-order")
+                .header("Authorization", "Bearer $token")
+                .post(requestBody)
+                .build()
 
-            Log.d(TAG, "Create BSC payment response ($responseCode): $responseBody")
+            val response = SecureHttpClient.client.newCall(request).execute()
+            val responseBody = response.body?.string() ?: ""
 
-            if (responseCode == 200) {
+            Log.d(TAG, "Create BSC payment response (${response.code}): $responseBody")
+
+            if (response.isSuccessful) {
                 val json = JSONObject(responseBody)
                 val order = json.getJSONObject("order")
-                
+
                 Result.success(PaymentOrder(
                     orderId = order.getString("orderId"),
                     paymentAddress = order.getString("paymentAddress"),
@@ -103,24 +140,20 @@ class PaymentManager(private val context: Context) {
     // Check BSC payment status
     suspend fun checkPaymentStatus(orderId: String): PaymentStatusResponse = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$BSC_BASE_URL/api/check-payment/$orderId")
-            val connection = url.openConnection() as HttpURLConnection
+            val request = Request.Builder()
+                .url("$BSC_BASE_URL/api/check-payment/$orderId")
+                .get()
+                .build()
 
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 60000
-            connection.readTimeout = 60000
+            val response = SecureHttpClient.client.newCall(request).execute()
+            val responseBody = response.body?.string() ?: ""
 
-            val responseCode = connection.responseCode
-            val responseBody = BufferedReader(InputStreamReader(
-                if (responseCode == 200) connection.inputStream else connection.errorStream
-            )).use { it.readText() }
+            Log.d(TAG, "Check BSC payment status response (${response.code}): $responseBody")
 
-            Log.d(TAG, "Check BSC payment status response ($responseCode): $responseBody")
-
-            if (responseCode == 200) {
+            if (response.isSuccessful) {
                 val json = JSONObject(responseBody)
                 val order = json.getJSONObject("order")
-                
+
                 val licenseKey = if (json.has("license") && !json.isNull("license")) {
                     json.getJSONObject("license").getString("key")
                 } else null
@@ -154,21 +187,17 @@ class PaymentManager(private val context: Context) {
     // Verify license
     suspend fun verifyLicense(licenseKey: String, deviceId: String): VerifyLicenseResponse = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$LICENSE_API_URL/api/license/verify/$deviceId/$licenseKey")
-            val connection = url.openConnection() as HttpURLConnection
+            val request = Request.Builder()
+                .url("$LICENSE_API_URL/api/license/verify/$deviceId/$licenseKey")
+                .get()
+                .build()
 
-            connection.requestMethod = "GET"
-            connection.connectTimeout = 60000
-            connection.readTimeout = 60000
+            val response = SecureHttpClient.client.newCall(request).execute()
+            val responseBody = response.body?.string() ?: ""
 
-            val responseCode = connection.responseCode
-            val responseBody = BufferedReader(InputStreamReader(
-                if (responseCode == 200) connection.inputStream else connection.errorStream
-            )).use { it.readText() }
+            Log.d(TAG, "Verify license response (${response.code}): $responseBody")
 
-            Log.d(TAG, "Verify license response ($responseCode): $responseBody")
-
-            if (responseCode == 200) {
+            if (response.isSuccessful) {
                 val json = JSONObject(responseBody)
                 VerifyLicenseResponse(
                     success = json.getBoolean("success"),
@@ -205,34 +234,26 @@ class PaymentManager(private val context: Context) {
     // Verify and link license
     suspend fun verifyAndLinkLicense(licenseKey: String, deviceId: String, userId: Int?, userEmail: String, token: String): VerifyLicenseResponse = withContext(Dispatchers.IO) {
         try {
-            val url = URL("$LICENSE_API_URL/api/license/verify-and-link")
-            val connection = url.openConnection() as HttpURLConnection
-
-            connection.requestMethod = "POST"
-            connection.setRequestProperty("Content-Type", "application/json")
-            connection.setRequestProperty("Authorization", "Bearer $token")
-            connection.doOutput = true
-            connection.connectTimeout = 60000
-            connection.readTimeout = 60000
-
             val jsonBody = JSONObject().apply {
                 put("licenseKey", licenseKey)
                 put("deviceId", deviceId)
             }
 
-            OutputStreamWriter(connection.outputStream).use { writer ->
-                writer.write(jsonBody.toString())
-                writer.flush()
-            }
+            val requestBody = jsonBody.toString()
+                .toRequestBody("application/json".toMediaType())
 
-            val responseCode = connection.responseCode
-            val responseBody = BufferedReader(InputStreamReader(
-                if (responseCode == 200) connection.inputStream else connection.errorStream
-            )).use { it.readText() }
+            val request = Request.Builder()
+                .url("$LICENSE_API_URL/api/license/verify-and-link")
+                .header("Authorization", "Bearer $token")
+                .post(requestBody)
+                .build()
 
-            Log.d(TAG, "Verify and link license response ($responseCode): $responseBody")
+            val response = SecureHttpClient.client.newCall(request).execute()
+            val responseBody = response.body?.string() ?: ""
 
-            if (responseCode == 200) {
+            Log.d(TAG, "Verify and link license response (${response.code}): $responseBody")
+
+            if (response.isSuccessful) {
                 val json = JSONObject(responseBody)
                 VerifyLicenseResponse(
                     success = json.getBoolean("success"),
