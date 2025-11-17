@@ -17,16 +17,23 @@ android {
 
     defaultConfig {
         // applicationId, versionCode, and versionName are set by setupApp() from vvpn.properties
-        
-        splits.abi {
-            reset()
-            include(
+
+        // Universal APK configuration - includes all ABIs in a single APK
+        // This APK can be installed on any device (armv7a, armv8a, x86, x86_64)
+        ndk {
+            abiFilters.addAll(listOf(
                 "arm64-v8a",
                 "armeabi-v7a",
                 "x86_64",
                 "x86"
-            )
+            ))
         }
+
+        // Disable APK splits to create a single universal APK
+        splits.abi {
+            isEnable = false
+        }
+
         ndkVersion = "28.2.13676358"
     }
     

@@ -354,8 +354,17 @@ class MainActivity : ThemedActivity(),
             isCheckingAuth = false
 
             if (resultCode == RESULT_OK) {
-                Log.d("MainActivity", "Auth successful - fetching licenses...")
+                Log.d("MainActivity", "Auth successful - fetching licenses and initializing app...")
+
+                // Fetch licenses from the server
                 fetchAndSaveLicenses()
+
+                // Initialize the app UI immediately after successful authentication/payment
+                // This ensures the app is ready to use without requiring a restart
+                if (!::binding.isInitialized) {
+                    Log.d("MainActivity", "Initializing app UI after successful license activation")
+                    initializeApp(savedInstanceStateStored)
+                }
             } else {
                 Log.d("MainActivity", "Auth cancelled, finishing")
                 finish()
