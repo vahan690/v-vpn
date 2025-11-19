@@ -75,8 +75,8 @@ override fun onCreate(savedInstanceState: Bundle?) {
                 etToken.error = "Reset code is required"
                 false
             }
-            token.length != 64 -> {
-                etToken.error = "Invalid reset code"
+            token.length != 6 || !token.all { it.isDigit() } -> {
+                etToken.error = "Reset code must be 6 digits"
                 false
             }
             password.isEmpty() -> {
