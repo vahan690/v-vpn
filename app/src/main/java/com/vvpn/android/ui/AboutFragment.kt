@@ -88,11 +88,12 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                 && !(requireContext().getSystemService(Context.POWER_SERVICE) as PowerManager)
             .isIgnoringBatteryOptimizations(context.packageName)
         val cards = ArrayList<AboutCard>(
-            2 // App version and App Update
+            3 // App version, App Update, Contact Support
                     + if (shouldRequestBatteryOptimizations) 1 else 0 // Battery optimization
         ).apply {
             add(AboutCard.AppVersion())
             add(AboutCard.AppUpdate())
+            add(AboutCard.ContactSupport())
             if (shouldRequestBatteryOptimizations) {
                 add(AboutCard.BatteryOptimization(requestIgnoreBatteryOptimizations))
             }
@@ -113,6 +114,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
         class AppVersion() : AboutCard
         class SingBoxVersion() : AboutCard
         class AppUpdate() : AboutCard
+        class ContactSupport() : AboutCard
         data class Plugin(val plugin: AboutPlugin) : AboutCard
         class BatteryOptimization(val launcher: ActivityResultLauncher<Intent>) : AboutCard {
             override fun equals(other: Any?): Boolean {
@@ -148,6 +150,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                 is AboutCard.AppVersion -> holder.bindAppVersion()
                 is AboutCard.SingBoxVersion -> holder.bindSingBoxVersion()
                 is AboutCard.AppUpdate -> holder.bindAppUpdate()
+                is AboutCard.ContactSupport -> holder.bindContactSupport()
                 is AboutCard.Plugin -> holder.bindPlugin(item.plugin)
                 is AboutCard.BatteryOptimization ->
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -164,6 +167,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                 is AboutCard.AppVersion -> new is AboutCard.AppVersion
                 is AboutCard.SingBoxVersion -> new is AboutCard.SingBoxVersion
                 is AboutCard.AppUpdate -> new is AboutCard.AppUpdate
+                is AboutCard.ContactSupport -> new is AboutCard.ContactSupport
                 is AboutCard.Plugin -> new is AboutCard.Plugin && old.plugin.id == new.plugin.id
                 is AboutCard.BatteryOptimization -> new is AboutCard.BatteryOptimization
             }
@@ -197,6 +201,16 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
             binding.aboutCardDescription.text = Libcore.version()
             binding.root.setOnClickListener { view ->
                 view.context.launchCustomTab("https://github.com/SagerNet/sing-box")
+            }
+        }
+
+        fun bindContactSupport() {
+            binding.aboutCardIcon.setImageResource(R.drawable.ic_baseline_import_contacts_24)
+            binding.aboutCardTitle.setText(R.string.contact_support)
+            binding.aboutCardDescription.setText(R.string.contact_support_description)
+            binding.root.setOnClickListener { view ->
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://t.me/vvpnspace"))
+                view.context.startActivity(intent)
             }
         }
 

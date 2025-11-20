@@ -702,4 +702,8 @@
     <string name="check_for_updates">Check for Updates</string>
     <string name="current_version_x">Current version: %s</string>
     <string name="app_up_to_date">App is up to date</string>
+
+    <!-- Support strings -->
+    <string name="contact_support">Contact Support</string>
+    <string name="contact_support_description">Chat with us on Telegram</string>
 </resources>
