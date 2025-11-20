@@ -697,4 +697,9 @@
     <string name="permission_denied">Permission denied</string>
     <string name="save_to_system">Save to System</string>
     <string name="saved_to_download">File has saved to Download directory.</string>
+
+    <!-- Auto-update strings -->
+    <string name="check_for_updates">Check for Updates</string>
+    <string name="current_version_x">Current version: %s</string>
+    <string name="app_up_to_date">App is up to date</string>
 </resources>

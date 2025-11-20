@@ -16,6 +16,7 @@ import androidx.appcompat.app.AppCompatActivity
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import com.vvpn.android.R
+import com.vvpn.android.network.DeviceManager
 import kotlinx.coroutines.*
 
 class PaymentActivity : AppCompatActivity() {
@@ -360,6 +361,7 @@ class PaymentActivity : AppCompatActivity() {
             .setPositiveButton("Yes") { _, _ ->
                 // Clear auth and license data
                 authManager.logout()
+                DeviceManager.resetState()
                 licenseManager.clearLicense()
 
                 // Cancel any ongoing operations

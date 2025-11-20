@@ -57,7 +57,12 @@
 
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Empty blocks removed - RecyclerView and License cards -->
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/aboutRecycler"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:nestedScrollingEnabled="false"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
 
         </LinearLayout>
 

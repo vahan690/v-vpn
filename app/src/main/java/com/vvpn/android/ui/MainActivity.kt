@@ -89,6 +89,9 @@ import com.vvpn.android.payment.SecureHttpClient
 import com.vvpn.android.security.SecurityManager
 import com.vvpn.android.security.RootDetector
 import com.vvpn.android.security.TamperDetector
+import com.vvpn.android.network.DeviceManager
+import com.vvpn.android.network.UpdateChecker
+import com.vvpn.android.network.UpdateNotificationManager
 
 class MainActivity : ThemedActivity(),
     SagerConnection.Callback,
@@ -171,6 +174,10 @@ class MainActivity : ThemedActivity(),
         }
 
         Log.d("MainActivity", "Valid license found, initializing app")
+
+        // Check for app updates on startup (background)
+        checkForUpdates()
+
         initializeApp(savedInstanceState)
     }
 
@@ -211,6 +218,37 @@ class MainActivity : ThemedActivity(),
         // Log signature for reference (helpful for getting your release certificate hash)
         val signatureSHA256 = TamperDetector.getAppSignatureSHA256(this)
         Log.i("MainActivity", "App signature SHA-256: $signatureSHA256")
+    }
+
+    /**
+     * Check for app updates on startup (background, silent)
+     * Shows notification if update is available
+     */
+    private fun checkForUpdates() {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                Log.d("MainActivity", "Checking for app updates...")
+
+                val updateInfo = UpdateChecker.checkForUpdate(this@MainActivity)
+
+                if (updateInfo != null) {
+                    Log.d("MainActivity", "Update available: ${updateInfo.versionName}")
+
+                    // Show update notification with action buttons
+                    withContext(Dispatchers.Main) {
+                        UpdateNotificationManager.showUpdateAvailableNotification(
+                            this@MainActivity,
+                            updateInfo
+                        )
+                    }
+                } else {
+                    Log.d("MainActivity", "App is up to date")
+                }
+            } catch (e: Exception) {
+                Log.e("MainActivity", "Update check failed", e)
+                // Silent failure - don't interrupt user experience
+            }
+        }
     }
 
     private fun initializeApp(savedInstanceState: Bundle?) {
@@ -633,6 +671,9 @@ class MainActivity : ThemedActivity(),
         // Clear auth token
         authManager.logout()
 
+        // Reset device connection state
+        DeviceManager.resetState()
+
         // Clear license
         licenseManager.clearLicense()
 
@@ -915,9 +956,22 @@ class MainActivity : ThemedActivity(),
             try {
                 val result = withContext(Dispatchers.IO) {
                     try {
-                        // Fetch all licenses for this device using secure HTTP client
-                        val request = Request.Builder()
+                        // Get JWT token from AuthManager for authenticated API call
+                        val token = authManager.getToken()
+
+                        // Fetch all licenses for this device using secure HTTP client with authentication
+                        val requestBuilder = Request.Builder()
                             .url("https://api.vvpn.space/api/license/device/$deviceId")
+
+                        // Add Authorization header if token exists
+                        if (token != null) {
+                            requestBuilder.addHeader("Authorization", "Bearer $token")
+                            Log.d("MainActivity", "Added JWT token to license request")
+                        } else {
+                            Log.w("MainActivity", "No JWT token available - API will return newest license")
+                        }
+
+                        val request = requestBuilder
                             .get()
                             .build()
 

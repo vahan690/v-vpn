@@ -13,12 +13,14 @@ import com.vvpn.android.fmt.hysteria.HysteriaBean
 import com.vvpn.android.fmt.hysteria.buildHysteriaConfig
 import com.vvpn.android.ktx.Logs
 import com.vvpn.android.ktx.runOnDefaultDispatcher
+import com.vvpn.android.network.DeviceManager
 import com.vvpn.android.plugin.PluginManager
 import kotlinx.coroutines.DelicateCoroutinesApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.GlobalScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.plus
+import kotlinx.coroutines.runBlocking
 import libcore.BoxInstance
 import libcore.Libcore
 import java.io.File
@@ -136,6 +138,24 @@ abstract class BoxInstance(
             }
         }
 
+        // Register device with API and enforce single-connection rule
+        Logs.d("📱 BoxInstance: Registering device connection with API...")
+        val connectionAllowed = try {
+            runBlocking {
+                DeviceManager.connectDevice(app)
+            }
+        } catch (e: Exception) {
+            Logs.e("❌ BoxInstance: Device registration failed", e)
+            throw Exception("Failed to register device: ${e.message}")
+        }
+
+        if (!connectionAllowed) {
+            // HTTP 409 - Another device is already connected
+            Logs.w("⚠️ BoxInstance: Connection rejected - another device is already active")
+            throw Exception("You are already connected from another device. Please disconnect that device first.")
+        }
+
+        Logs.d("✅ BoxInstance: Device registered successfully, starting VPN...")
         box.start()
     }
 
@@ -164,6 +184,18 @@ abstract class BoxInstance(
                     exitProcess(0)
                 }
             }
+        }
+
+        // Unregister device from API after VPN stops
+        Logs.d("📱 BoxInstance: Unregistering device from API...")
+        try {
+            runBlocking {
+                DeviceManager.disconnectDevice(app)
+            }
+            Logs.d("✅ BoxInstance: Device unregistered successfully")
+        } catch (e: Exception) {
+            // Don't throw - disconnection errors shouldn't prevent VPN from stopping
+            Logs.w("⚠️ BoxInstance: Failed to unregister device (continuing anyway)", e)
         }
     }
 

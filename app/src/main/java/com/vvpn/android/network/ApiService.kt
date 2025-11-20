@@ -43,10 +43,20 @@ interface ApiService {
         @Body request: DisconnectDeviceRequest
     ): Response<DisconnectDeviceResponse>
 
+    @POST("license/heartbeat")
+    suspend fun sendHeartbeat(
+        @Header("Authorization") token: String,
+        @Body request: HeartbeatRequest
+    ): Response<HeartbeatResponse>
+
     @GET("license/devices")
     suspend fun getDevices(
         @Header("Authorization") token: String
     ): Response<DevicesResponse>
+
+    // App Update Endpoints
+    @GET("app/version")
+    suspend fun getAppVersion(): Response<AppVersionResponse>
 }
 
 // Request Models
@@ -56,6 +66,7 @@ data class RegisterRequest(val email: String, val password: String, val full_nam
 data class LoginRequest(val email: String, val password: String)
 data class ConnectDeviceRequest(val deviceId: String, val deviceName: String?)
 data class DisconnectDeviceRequest(val deviceId: String)
+data class HeartbeatRequest(val deviceId: String)
 
 // Response Models
 data class ForgotPasswordResponse(val success: Boolean, val message: String)
@@ -90,6 +101,11 @@ data class DisconnectDeviceResponse(
     val message: String?
 )
 
+data class HeartbeatResponse(
+    val success: Boolean,
+    val message: String?
+)
+
 data class DevicesResponse(
     val success: Boolean,
     val devices: List<DeviceInfo>?
@@ -114,4 +130,22 @@ data class LicenseInfo(
 data class ActiveDeviceInfo(
     val deviceId: String,
     val deviceName: String?
+)
+
+// App Update Response Models
+data class AppVersionResponse(
+    val success: Boolean,
+    val version: AppVersionData?
+)
+
+data class AppVersionData(
+    val versionCode: Int,
+    val versionName: String,
+    val minSupportedVersion: Int,
+    val apkUrl: String,
+    val apkHash: String?,
+    val apkSize: Long?,
+    val releaseDate: String,
+    val releaseNotes: String,
+    val forceUpdate: Boolean
 )

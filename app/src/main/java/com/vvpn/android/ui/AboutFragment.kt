@@ -33,6 +33,12 @@ import com.vvpn.android.databinding.LayoutAboutBinding
 import com.vvpn.android.databinding.ViewAboutCardBinding
 import com.vvpn.android.ktx.dp2px
 import com.vvpn.android.ktx.launchCustomTab
+import com.vvpn.android.ktx.Logs
+import com.vvpn.android.network.UpdateChecker
+import com.vvpn.android.network.UpdateInfo
+import com.vvpn.android.network.UpdateNotificationManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import libcore.Libcore
@@ -61,8 +67,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
             insets
         }
 
-        // RecyclerView removed from layout
-        /*
+        // Initialize RecyclerView adapter for About cards
         binding.aboutRecycler.adapter = AboutAdapter().also {
             adapter = it
         }
@@ -72,31 +77,26 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                 viewModel.uiState.collect(::handleUiState)
             }
         }
-        */
 
 //        binding.license.text = LICENSE
 //        Linkify.addLinks(binding.license, Linkify.EMAIL_ADDRESSES or Linkify.WEB_URLS)
     }
 
     private fun handleUiState(state: AboutFragmentUiState) {
-//        val context = requireContext()
-//        val shouldRequestBatteryOptimizations = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
-//                && !(requireContext().getSystemService(Context.POWER_SERVICE) as PowerManager)
-//            .isIgnoringBatteryOptimizations(context.packageName)
-        val cards = ArrayList<AboutCard>(0)
-//            2 // App version and SingBox version
-//                    + state.plugins.size // Plugins
-//                    + if (shouldRequestBatteryOptimizations) 1 else 0 // Battery optimization
-//        ).apply {
-//            add(AboutCard.AppVersion())
-//            add(AboutCard.SingBoxVersion())
-//            state.plugins.forEach { plugin ->
-//                add(AboutCard.Plugin(plugin))
-//            }
-//            if (shouldRequestBatteryOptimizations) {
-//                add(AboutCard.BatteryOptimization(requestIgnoreBatteryOptimizations))
-//            }
-//        }
+        val context = requireContext()
+        val shouldRequestBatteryOptimizations = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && !(requireContext().getSystemService(Context.POWER_SERVICE) as PowerManager)
+            .isIgnoringBatteryOptimizations(context.packageName)
+        val cards = ArrayList<AboutCard>(
+            2 // App version and App Update
+                    + if (shouldRequestBatteryOptimizations) 1 else 0 // Battery optimization
+        ).apply {
+            add(AboutCard.AppVersion())
+            add(AboutCard.AppUpdate())
+            if (shouldRequestBatteryOptimizations) {
+                add(AboutCard.BatteryOptimization(requestIgnoreBatteryOptimizations))
+            }
+        }
         adapter.submitList(cards)
     }
 
@@ -112,6 +112,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
     private sealed interface AboutCard {
         class AppVersion() : AboutCard
         class SingBoxVersion() : AboutCard
+        class AppUpdate() : AboutCard
         data class Plugin(val plugin: AboutPlugin) : AboutCard
         class BatteryOptimization(val launcher: ActivityResultLauncher<Intent>) : AboutCard {
             override fun equals(other: Any?): Boolean {
@@ -146,6 +147,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
             when (val item = getItem(position)) {
                 is AboutCard.AppVersion -> holder.bindAppVersion()
                 is AboutCard.SingBoxVersion -> holder.bindSingBoxVersion()
+                is AboutCard.AppUpdate -> holder.bindAppUpdate()
                 is AboutCard.Plugin -> holder.bindPlugin(item.plugin)
                 is AboutCard.BatteryOptimization ->
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -161,6 +163,7 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
             return when (old) {
                 is AboutCard.AppVersion -> new is AboutCard.AppVersion
                 is AboutCard.SingBoxVersion -> new is AboutCard.SingBoxVersion
+                is AboutCard.AppUpdate -> new is AboutCard.AppUpdate
                 is AboutCard.Plugin -> new is AboutCard.Plugin && old.plugin.id == new.plugin.id
                 is AboutCard.BatteryOptimization -> new is AboutCard.BatteryOptimization
             }
@@ -183,16 +186,6 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
                 displayVersion += " DEBUG"
             }
             binding.aboutCardDescription.text = displayVersion
-
-            binding.root.setOnClickListener { view ->
-                view.context.launchCustomTab(
-                    if (Libcore.isPreRelease(BuildConfig.VERSION_NAME)) {
-                        "https://github.com/xchacha20-poly1305/husi/releases"
-                    } else {
-                        "https://github.com/xchacha20-poly1305/husi/releases/latest"
-                    }
-                )
-            }
         }
 
         fun bindSingBoxVersion() {
@@ -204,6 +197,55 @@ class AboutFragment : ToolbarFragment(R.layout.layout_about) {
             binding.aboutCardDescription.text = Libcore.version()
             binding.root.setOnClickListener { view ->
                 view.context.launchCustomTab("https://github.com/SagerNet/sing-box")
+            }
+        }
+
+        fun bindAppUpdate() {
+            binding.aboutCardIcon.setImageResource(R.drawable.ic_baseline_update_24)
+            binding.aboutCardTitle.setText(R.string.check_for_updates)
+            binding.aboutCardDescription.text = binding.aboutCardDescription.context.getString(
+                R.string.current_version_x,
+                "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+            )
+
+            binding.root.setOnClickListener { view ->
+                // Show checking progress
+                binding.aboutCardDescription.text = "Checking for updates..."
+
+                CoroutineScope(Dispatchers.Main).launch {
+                    try {
+                        val updateInfo = UpdateChecker.checkForUpdate(view.context)
+
+                        if (updateInfo != null) {
+                            // Update available - show notification
+                            UpdateNotificationManager.showUpdateAvailableNotification(
+                                view.context,
+                                updateInfo
+                            )
+                            binding.aboutCardDescription.text = "Update available: ${updateInfo.versionName}"
+                        } else {
+                            // No update available
+                            binding.aboutCardDescription.text = binding.aboutCardDescription.context.getString(
+                                R.string.app_up_to_date
+                            )
+                            // Reset after 2 seconds
+                            delay(2000)
+                            binding.aboutCardDescription.text = binding.aboutCardDescription.context.getString(
+                                R.string.current_version_x,
+                                "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+                            )
+                        }
+                    } catch (e: Exception) {
+                        Logs.e("AboutFragment: Update check failed", e)
+                        binding.aboutCardDescription.text = "Failed to check for updates"
+                        // Reset after 2 seconds
+                        delay(2000)
+                        binding.aboutCardDescription.text = binding.aboutCardDescription.context.getString(
+                            R.string.current_version_x,
+                            "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+                        )
+                    }
+                }
             }
         }
 

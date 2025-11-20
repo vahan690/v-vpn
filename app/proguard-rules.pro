@@ -40,6 +40,10 @@
     <init>(...);
 }
 
+# Keep all network API data classes (CRITICAL for device management)
+# These are serialized/deserialized with Gson for API communication
+-keep class com.vvpn.android.network.** { *; }
+
 # Keep VPN protocol beans (needed for serialization)
 -keep class com.vvpn.android.fmt.** { *; }
 -keep class com.vvpn.android.database.ProxyEntity { *; }
