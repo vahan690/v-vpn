@@ -7,6 +7,7 @@ import 'package:vvpn/features/connection/data/connection_repository.dart';
 import 'package:vvpn/features/connection/model/connection_status.dart';
 import 'package:vvpn/features/profile/model/profile_entity.dart';
 import 'package:vvpn/features/profile/notifier/active_profile_notifier.dart';
+import 'package:vvpn/features/vvpn/notifier/vvpn_auth_notifier.dart';
 import 'package:vvpn/utils/utils.dart';
 import 'package:in_app_review/in_app_review.dart';
 import 'package:riverpod_annotation/riverpod_annotation.dart';
@@ -149,6 +150,9 @@ class ConnectionNotifier extends _$ConnectionNotifier with AppLogger {
   }
 
   Future<void> _disconnect() async {
+    // Disconnect device from V-VPN server
+    await ref.read(vvpnAuthNotifierProvider.notifier).disconnectDevice();
+
     await _connectionRepo.disconnect().mapLeft((err) {
       loggy.warning("error disconnecting", err);
       state = AsyncError(err, StackTrace.current);

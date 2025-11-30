@@ -1,7 +1,10 @@
+import 'package:fluentui_system_icons/fluentui_system_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:gap/gap.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:vvpn/core/localization/translations.dart';
+import 'package:vvpn/core/model/constants.dart';
 import 'package:vvpn/core/model/failures.dart';
 import 'package:vvpn/core/theme/theme_extensions.dart';
 import 'package:vvpn/core/widget/animated_text.dart';
@@ -12,6 +15,7 @@ import 'package:vvpn/features/connection/notifier/connection_notifier.dart';
 import 'package:vvpn/features/connection/widget/experimental_feature_notice.dart';
 import 'package:vvpn/features/profile/notifier/active_profile_notifier.dart';
 import 'package:vvpn/features/proxy/active/active_proxy_notifier.dart';
+import 'package:vvpn/features/vvpn/notifier/vvpn_auth_notifier.dart';
 import 'package:vvpn/gen/assets.gen.dart';
 import 'package:vvpn/utils/alerts.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
@@ -53,9 +57,98 @@ class ConnectionButton extends HookConsumerWidget {
       return true;
     }
 
+    Future<bool> checkLicenseAndShowDialog() async {
+      // Refresh license info from server
+      await ref.read(vvpnAuthNotifierProvider.notifier).refreshLicenseInfo();
+
+      final hasLicense = ref.read(vvpnAuthNotifierProvider.notifier).hasActiveLicense;
+      if (!hasLicense && context.mounted) {
+        // Show connection failed dialog - neutral wording for App Store
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Connection Failed'),
+            content: const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Unable to establish VPN connection. This may be due to a server configuration issue with your account.'),
+                SizedBox(height: 16),
+                Text('Please contact our support team for assistance.'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+              TextButton.icon(
+                onPressed: () async {
+                  final uri = Uri.parse('mailto:${Constants.supportEmail}?subject=VPN Connection Issue');
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri);
+                  }
+                },
+                icon: const Icon(FluentIcons.mail_24_regular, size: 18),
+                label: const Text('Email'),
+              ),
+              TextButton.icon(
+                onPressed: () async {
+                  final uri = Uri.parse(Constants.telegramChannelUrl);
+                  if (await canLaunchUrl(uri)) {
+                    await launchUrl(uri, mode: LaunchMode.externalApplication);
+                  }
+                },
+                icon: const Icon(FluentIcons.chat_24_regular, size: 18),
+                label: const Text('Telegram'),
+              ),
+            ],
+          ),
+        );
+        return false;
+      }
+      return true;
+    }
+
+    Future<bool> checkDeviceConnectionAndShowDialog() async {
+      // Try to register this device's connection
+      final canConnect = await ref.read(vvpnAuthNotifierProvider.notifier).connectDevice();
+
+      if (!canConnect && context.mounted) {
+        // Another device is already connected
+        await showDialog(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Connection Limit Reached'),
+            content: const Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('You already have an active VPN connection on another device.'),
+                SizedBox(height: 16),
+                Text('Please disconnect from the other device first, or wait a moment and try again.'),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('OK'),
+              ),
+            ],
+          ),
+        );
+        return false;
+      }
+      return true;
+    }
+
     return _ConnectionButton(
       onTap: switch (connectionStatus) {
         AsyncData(value: Disconnected()) || AsyncError() => () async {
+            // Check license before connecting
+            if (!await checkLicenseAndShowDialog()) return;
+            // Check if another device is already connected
+            if (!await checkDeviceConnectionAndShowDialog()) return;
             if (await showExperimentalNotice()) {
               return await ref.read(connectionNotifierProvider.notifier).toggleConnection();
             }

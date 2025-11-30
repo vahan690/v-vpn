@@ -46,6 +46,8 @@ GoRouter router(RouterRef ref) {
       $registerRoute,
       $enterLicenseRoute,
       $licenseRoute,
+      $forgotPasswordRoute,
+      $resetPasswordRoute,
     ],
     refreshListenable: notifier,
     redirect: notifier.redirect,
@@ -114,10 +116,9 @@ class RouterListenable extends _$RouterListenable
     final isIntro = state.uri.path == const IntroRoute().location;
     final isLogin = state.uri.path == const LoginRoute().location;
     final isRegister = state.uri.path == const RegisterRoute().location;
-    final isEnterLicense = state.uri.path == const EnterLicenseRoute().location;
-    final isLicense = state.uri.path == const LicenseRoute().location;
-    final isAuthRoute = isLogin || isRegister;
-    final isLicenseRoute = isEnterLicense;
+    final isForgotPassword = state.uri.path == const ForgotPasswordRoute().location;
+    final isResetPassword = state.uri.path.startsWith('/reset-password');
+    final isAuthRoute = isLogin || isRegister || isForgotPassword || isResetPassword;
 
     // First check intro - this doesn't depend on auth loading
     if (!_introCompleted) {
@@ -139,10 +140,7 @@ class RouterListenable extends _$RouterListenable
       if (!_isAuthenticated) {
         return const LoginRoute().location;
       }
-      // Check license after auth
-      if (!_hasActiveLicense) {
-        return const EnterLicenseRoute().location;
-      }
+      // Go directly to home after authentication (no license check)
       return const HomeRoute().location;
     }
 
@@ -150,20 +148,7 @@ class RouterListenable extends _$RouterListenable
     if (!_isAuthenticated && !isAuthRoute) {
       return const LoginRoute().location;
     } else if (_isAuthenticated && isAuthRoute) {
-      // Authenticated user trying to access auth routes
-      if (!_hasActiveLicense) {
-        return const EnterLicenseRoute().location;
-      }
-      return const HomeRoute().location;
-    }
-
-    // Check license for authenticated users
-    if (_isAuthenticated && !_hasActiveLicense && !isLicenseRoute && !isLicense) {
-      return const EnterLicenseRoute().location;
-    }
-
-    // If user has active license and is on enter license page, redirect to home
-    if (_isAuthenticated && _hasActiveLicense && isLicenseRoute) {
+      // Authenticated user trying to access auth routes - go to home
       return const HomeRoute().location;
     }
 

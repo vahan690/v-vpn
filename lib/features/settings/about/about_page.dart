@@ -103,7 +103,10 @@ class AboutPage extends HookConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Assets.images.logo.svg(width: 64, height: 64),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(16),
+                    child: Assets.images.appLogo.image(width: 64, height: 64),
+                  ),
                   const Gap(16),
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -128,7 +131,20 @@ class AboutPage extends HookConsumerWidget {
                 ...conditionalTiles,
                 if (conditionalTiles.isNotEmpty) const Divider(),
                 ListTile(
-                  title: const Text('Contact Support'),
+                  leading: const Icon(FluentIcons.mail_24_regular),
+                  title: const Text('Email Support'),
+                  subtitle: Text(Constants.supportEmail),
+                  trailing: const Icon(FluentIcons.open_24_regular),
+                  onTap: () async {
+                    await UriUtils.tryLaunch(
+                      Uri.parse('mailto:${Constants.supportEmail}'),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: const Icon(FluentIcons.chat_24_regular),
+                  title: const Text('Telegram Support'),
+                  subtitle: const Text('@vvpncontact'),
                   trailing: const Icon(FluentIcons.open_24_regular),
                   onTap: () async {
                     await UriUtils.tryLaunch(

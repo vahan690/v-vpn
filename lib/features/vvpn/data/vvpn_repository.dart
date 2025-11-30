@@ -120,14 +120,23 @@ class VvpnRepository with InfraLogger {
   /// Fetch server config and create Hysteria2 profile
   Future<Either<VvpnFailure, Unit>> fetchAndCreateProfile() async {
     try {
-      final config = await apiService.getServerConfig();
+      Map<String, dynamic> singboxConfig;
 
-      if (!config.success) {
-        return left(const VvpnServerFailure('Failed to fetch server config'));
+      try {
+        final config = await apiService.getServerConfig();
+
+        if (config.success) {
+          // Build Sing-box config from server response
+          singboxConfig = _buildSingboxConfig(config);
+        } else {
+          // Use default config if server config fails
+          singboxConfig = _buildDefaultSingboxConfig();
+        }
+      } catch (e) {
+        // If API call fails (e.g., no license), use default config
+        loggy.warning('Failed to fetch server config, using default: $e');
+        singboxConfig = _buildDefaultSingboxConfig();
       }
-
-      // Build Sing-box config
-      final singboxConfig = _buildSingboxConfig(config);
 
       // Check if V-VPN profile already exists
       final existingProfile = await profileRepository.getByName('Unlock the World');
@@ -153,6 +162,72 @@ class VvpnRepository with InfraLogger {
     } catch (e, st) {
       return left(VvpnUnexpectedFailure(e, st));
     }
+  }
+
+  /// Build default Sing-box configuration (for users without license)
+  Map<String, dynamic> _buildDefaultSingboxConfig() {
+    return {
+      "log": {
+        "level": "info",
+        "timestamp": true,
+      },
+      "dns": {
+        "servers": [
+          {"tag": "dns-remote", "address": "https://1.1.1.1/dns-query", "detour": "proxy"},
+          {"tag": "dns-direct", "address": "https://1.1.1.1/dns-query", "detour": "direct"},
+          {"tag": "dns-block", "address": "rcode://success"},
+        ],
+        "rules": [{"outbound": "any", "server": "dns-direct"}],
+        "final": "dns-remote",
+        "strategy": "prefer_ipv4",
+      },
+      "inbounds": [
+        {
+          "type": "tun",
+          "tag": "tun-in",
+          "interface_name": "tun0",
+          "inet4_address": "172.19.0.1/30",
+          "mtu": 9000,
+          "auto_route": true,
+          "strict_route": true,
+          "stack": "system",
+          "sniff": true,
+          "sniff_override_destination": true,
+        },
+        {
+          "type": "mixed",
+          "tag": "mixed-in",
+          "listen": "127.0.0.1",
+          "listen_port": 12334,
+          "sniff": true,
+          "sniff_override_destination": true,
+        },
+      ],
+      "outbounds": [
+        {
+          "type": "hysteria2",
+          "tag": "proxy",
+          "server": "vpn-europe.vvpn.space",
+          "server_port": 443,
+          "password": "placeholder",
+          "tls": {"enabled": true, "server_name": "vpn-europe.vvpn.space", "insecure": false},
+        },
+        {"type": "direct", "tag": "direct"},
+        {"type": "block", "tag": "block"},
+        {"type": "dns", "tag": "dns-out"},
+      ],
+      "route": {
+        "rules": [
+          {"protocol": "dns", "outbound": "dns-out"},
+          {"ip_is_private": true, "outbound": "direct"},
+        ],
+        "final": "proxy",
+        "auto_detect_interface": true,
+      },
+      "experimental": {
+        "clash_api": {"external_controller": "127.0.0.1:9090"},
+      },
+    };
   }
 
   /// Build Sing-box configuration from V-VPN server config
